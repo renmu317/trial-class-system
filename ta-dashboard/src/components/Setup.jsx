@@ -49,7 +49,13 @@ export default function Setup({ onStart }) {
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) {
+      console.error('Failed to create session:', error)
+      alert('Failed to create session: ' + error.message)
+      return
+    }
+
+    if (data) {
       setSessions([data, ...sessions])
       setSelectedSession(data)
       setShowNewSession(false)
