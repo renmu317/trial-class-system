@@ -191,8 +191,11 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit })
   };
 
   const toggleLevel = (lvl) => {
+    console.log('toggleLevel called:', lvl, 'current state:', openLevels);
     const wasOpen = openLevels[lvl];
-    setOpenLevels({ ...openLevels, [lvl]: !wasOpen });
+    const newState = { ...openLevels, [lvl]: !wasOpen };
+    console.log('new state:', newState);
+    setOpenLevels(newState);
     // Phase 2: event callback when opening medium or hard
     if (!wasOpen && (lvl === 'medium' || lvl === 'hard')) {
       onLevelOpen?.(lvl);
@@ -204,6 +207,9 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit })
     acc[lvl] = LESSON.upgrades.filter((u) => u.level === lvl);
     return acc;
   }, {});
+
+  // Debug: log grouped items
+  console.log('Upgrade grouped items:', grouped);
 
   return (
     <div className="max-w-2xl mx-auto">
