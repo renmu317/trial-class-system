@@ -1,4 +1,4 @@
-// V17 Dashboard with signal-based tracking
+// V17 Dashboard with signal-based tracking + P3 report generation
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Square, Users, QrCode } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -6,6 +6,7 @@ import { deriveAutoSignals, detectStuck } from '../lib/signalScore'
 import StudentCard from './StudentCard'
 import ExportButton from './ExportButton'
 import SessionQRCode from './SessionQRCode'
+import ReportReviewPanel from './ReportReviewPanel'
 
 export default function Dashboard({ session, taName, onExit }) {
   const [students, setStudents] = useState([])
@@ -15,6 +16,7 @@ export default function Dashboard({ session, taName, onExit }) {
   const [sessionStatus, setSessionStatus] = useState(session.status)
   const [showQR, setShowQR] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [activeReport, setActiveReport] = useState(null)  // P3: Report being reviewed
 
   // Fetch students (5s interval)
   const fetchStudents = useCallback(async () => {
@@ -200,6 +202,11 @@ export default function Dashboard({ session, taName, onExit }) {
     }))
   }
 
+  // P3: Handle report generation - open review panel
+  const handleReportGenerated = (report) => {
+    setActiveReport(report)
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -304,6 +311,8 @@ export default function Dashboard({ session, taName, onExit }) {
                 isStuck={stuckStudents.has(student.id)}
                 onDelete={handleDeleteStudent}
                 onSignalUpdate={handleSignalUpdate}
+                sessionId={session.id}
+                onReportGenerated={handleReportGenerated}
               />
             ))}
           </div>
@@ -328,6 +337,15 @@ export default function Dashboard({ session, taName, onExit }) {
           <div>🟢 = 100% auto | 🟡 = Mixed | 🔴 = Manual</div>
         </div>
       </div>
+
+      {/* P3: Report Review Panel */}
+      {activeReport && (
+        <ReportReviewPanel
+          report={activeReport}
+          onClose={() => setActiveReport(null)}
+          onUpdate={(updatedReport) => setActiveReport(updatedReport)}
+        />
+      )}
     </div>
   )
 }

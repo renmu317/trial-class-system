@@ -1,0 +1,12 @@
+{
+  "name": "trial-class-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "pressure-test": "node pressure-test.js",
+    "cleanup": "node cleanup-test-data.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}

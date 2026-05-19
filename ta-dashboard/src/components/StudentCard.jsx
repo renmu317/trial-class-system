@@ -1,8 +1,9 @@
-// V17 StudentCard with signal checkboxes
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle } from 'lucide-react'
+// V17 StudentCard with signal checkboxes + conversion signals + report generation
+import { useState, useEffect } from 'react'
+import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle, Users, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { calculateConversionScore, getDimensionStatus } from '../lib/signalScore'
+import ReportGenerator from './ReportGenerator'
 
 // Dimension display config
 const DIMENSIONS = {
@@ -12,6 +13,18 @@ const DIMENSIONS = {
   challenge: { label: 'CHALLENGE SEED', emoji: '🟡', color: 'yellow' },
   parent: { label: 'PARENT SIGNAL', emoji: '🔴', color: 'red' }
 }
+
+// Conversion signals config (triggers sales alerts)
+const CONVERSION_SIGNALS = [
+  { key: 'pa_stayed', label: 'Parent stayed', trigger: false },
+  { key: 'pa_photo', label: 'Parent took photo', trigger: false },
+  { key: 'pa_asked_price', label: 'Asked price', trigger: true },  // Alert trigger
+  { key: 'pa_leaned_in', label: 'Parent leaned in', trigger: false },
+  { key: 'pa_surprised', label: 'Parent surprised', trigger: false },
+  { key: 'ch_showed_parent', label: 'Showed parent', trigger: true },  // Alert trigger
+  { key: 'ch_wants_continue', label: 'Wants to continue', trigger: true },  // Alert trigger
+  { key: 'ch_explained_parent', label: 'Explained to parent', trigger: false }
+]
 
 function SignalCheckbox({ item, onToggle, disabled }) {
   const isAuto = item.auto
@@ -82,19 +95,92 @@ function DimensionSection({ name, config, status, onToggle, disabled }) {
   )
 }
 
-export default function StudentCard({ student, signals, events, isStuck, onDelete, onSignalUpdate }) {
+// Conversion signals section (collapsible)
+function ConversionSection({ signals, onToggle, expanded, onToggleExpand }) {
+  const triggerCount = CONVERSION_SIGNALS.filter(s => s.trigger && signals[s.key]).length
+
+  return (
+    <div className={`border rounded-lg p-2 ${triggerCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-purple-50 border-purple-200'}`}>
+      <button
+        onClick={onToggleExpand}
+        className="w-full flex items-center justify-between mb-1.5"
+      >
+        <div className="flex items-center gap-1.5">
+          <Users size={14} className="text-purple-600" />
+          <span className="text-xs font-semibold text-gray-700">CONVERSION SIGNALS</span>
+          {triggerCount > 0 && (
+            <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
+              {triggerCount} HOT
+            </span>
+          )}
+        </div>
+        <ChevronDown size={14} className={`text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      {expanded && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {CONVERSION_SIGNALS.map(signal => (
+            <label
+              key={signal.key}
+              className={`flex items-center gap-1.5 text-xs cursor-pointer hover:bg-white/50 rounded px-1 -mx-1 ${
+                signal.trigger ? 'font-medium' : ''
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={signals[signal.key] || false}
+                onChange={() => onToggle(signal.key)}
+                className={`w-4 h-4 rounded ${
+                  signal.trigger
+                    ? 'border-orange-400 text-orange-500 focus:ring-orange-500'
+                    : 'border-gray-300 text-purple-600 focus:ring-purple-500'
+                }`}
+              />
+              <span className={signals[signal.key] ? 'text-gray-700' : 'text-gray-500'}>
+                {signal.label}
+                {signal.trigger && ' *'}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function StudentCard({ student, signals, events, isStuck, onDelete, onSignalUpdate, sessionId, onReportGenerated }) {
   const [expanded, setExpanded] = useState(false)
+  const [conversionExpanded, setConversionExpanded] = useState(false)
+  const [conversionSignals, setConversionSignals] = useState({})
+  const [generatedReport, setGeneratedReport] = useState(null)
 
   // Calculate conversion score and dimension status
   const conversionScore = calculateConversionScore(signals)
   const dimensionStatus = getDimensionStatus(signals)
+
+  // Fetch conversion signals on mount and when student changes
+  useEffect(() => {
+    const fetchConversionSignals = async () => {
+      const { data } = await supabase
+        .from('conversion_signals')
+        .select('*')
+        .eq('student_id', student.id)
+        .single()
+
+      if (data) {
+        setConversionSignals(data)
+      }
+    }
+
+    fetchConversionSignals()
+  }, [student.id])
 
   // Get recent events for this student (last 3)
   const studentEvents = events
     ?.filter(e => e.student_id === student.id)
     ?.slice(0, 3) || []
 
-  // Toggle a TA checkbox
+  // Toggle a TA checkbox (student_signals)
   const handleToggle = async (key) => {
     const newValue = !signals[key]
 
@@ -116,6 +202,40 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
       console.error('Failed to update signal:', error)
       // Revert on error
       onSignalUpdate(student.id, key, !newValue)
+    }
+  }
+
+  // Toggle a conversion signal
+  const handleConversionToggle = async (key) => {
+    const newValue = !conversionSignals[key]
+
+    // Optimistic update
+    setConversionSignals(prev => ({ ...prev, [key]: newValue }))
+
+    // Upsert in database
+    const { error } = await supabase
+      .from('conversion_signals')
+      .upsert({
+        student_id: student.id,
+        session_id: sessionId,
+        [key]: newValue,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'student_id'
+      })
+
+    if (error) {
+      console.error('Failed to update conversion signal:', error)
+      // Revert on error
+      setConversionSignals(prev => ({ ...prev, [key]: !newValue }))
+    }
+  }
+
+  // Handle report generation
+  const handleReportGenerated = (report) => {
+    setGeneratedReport(report)
+    if (onReportGenerated) {
+      onReportGenerated(report)
     }
   }
 
@@ -205,6 +325,14 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
             />
           ))}
 
+          {/* Conversion signals section */}
+          <ConversionSection
+            signals={conversionSignals}
+            onToggle={handleConversionToggle}
+            expanded={conversionExpanded}
+            onToggleExpand={() => setConversionExpanded(!conversionExpanded)}
+          />
+
           {/* Recent events */}
           {studentEvents.length > 0 && (
             <div className="pt-2 border-t">
@@ -218,6 +346,21 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
               </div>
             </div>
           )}
+
+          {/* Report Generator */}
+          <div className="pt-2 border-t">
+            <ReportGenerator
+              student={student}
+              signals={signals}
+              sessionId={sessionId}
+              onReportGenerated={handleReportGenerated}
+            />
+            {generatedReport && (
+              <p className="text-xs text-green-600 mt-1 px-1">
+                Report ready! Token: {generatedReport.share_token?.slice(0, 8)}...
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

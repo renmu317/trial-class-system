@@ -2,9 +2,10 @@
 
 ## Project Overview
 
-A two-app system for AI Creative Class trial sessions:
-- **Student App** (port 5173): Students design games and generate AI prompts
-- **TA Dashboard** (port 5174): TAs monitor students and collect behavioral signals
+A three-app system for AI Creative Class trial sessions:
+- **Student App** (port 5173): Students design games and generate AI prompts + Report viewing
+- **TA Dashboard** (port 5174): TAs monitor students, collect signals, generate AI reports
+- **Sales App** (port 5175): Real-time sales dashboard with conversion signals (P3)
 
 ## Tech Stack
 
@@ -22,35 +23,48 @@ Trial_Class_System/
 ├── student-app/          # Student-facing app
 │   ├── src/
 │   │   ├── App.jsx       # Main app with session/event management
+│   │   ├── main.jsx      # Router setup for /report/:token
 │   │   ├── lib/
 │   │   │   ├── supabase.js
 │   │   │   ├── events.js    # Event reporting with offline queue
 │   │   │   └── lesson.js    # LESSON config, RECOVERY, upgrades
-│   │   └── components/
-│   │       ├── NameInput.jsx
-│   │       ├── DesignCard.jsx
-│   │       ├── PromptGenerator.jsx
-│   │       ├── Recovery.jsx
-│   │       ├── Upgrade.jsx
-│   │       ├── GameNameBadge.jsx
-│   │       └── Button.jsx
-│   └── .env.local        # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+│   │   ├── components/
+│   │   │   ├── NameInput.jsx
+│   │   │   ├── DesignCard.jsx
+│   │   │   ├── PromptGenerator.jsx
+│   │   │   ├── Recovery.jsx
+│   │   │   ├── Upgrade.jsx
+│   │   │   ├── GameNameBadge.jsx
+│   │   │   └── Button.jsx
+│   │   └── pages/
+│   │       └── ReportPage.jsx    # P3: Public report page
+│   └── .env.local
 │
 ├── ta-dashboard/         # TA-facing dashboard
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── lib/
 │   │   │   ├── supabase.js
-│   │   │   └── signalScore.js  # V17 conversion score algorithm
+│   │   │   ├── signalScore.js    # V17 conversion score algorithm
+│   │   │   └── reportPrompt.js   # P3: DeepSeek AI prompt
 │   │   └── components/
 │   │       ├── Setup.jsx
 │   │       ├── Dashboard.jsx
-│   │       ├── StudentCard.jsx   # V17 checkbox UI
+│   │       ├── StudentCard.jsx       # V17 + P3 conversion signals
 │   │       ├── SessionQRCode.jsx
-│   │       └── ExportButton.jsx
+│   │       ├── ExportButton.jsx
+│   │       ├── ReportGenerator.jsx   # P3: AI report generation
+│   │       └── ReportReviewPanel.jsx # P3: Report preview/edit/send
+│   └── .env.local                    # + VITE_DEEPSEEK_API_KEY
+│
+├── sales-app/            # P3: Sales-facing dashboard
+│   ├── src/
+│   │   ├── App.jsx       # Single-page MVP with realtime updates
+│   │   └── lib/supabase.js
 │   └── .env.local
 │
 ├── supabase-schema-v17.sql   # V17 student_signals table
+├── p3-schema.sql             # P3: conversion_signals + reports tables
 └── Plan-v3-dimensions.md     # V17 design document
 ```
 
@@ -66,6 +80,8 @@ Trial_Class_System/
 | `students` | Student records per session |
 | `student_events` | Behavioral events from student app |
 | `student_signals` | V17 signal-based tracking (boolean flags) |
+| `conversion_signals` | P3: Sales conversion tracking (TA + Sales + auto) |
+| `reports` | P3: AI-generated student reports |
 | `scores` | Legacy 1-10 scoring (deprecated) |
 
 ## V17 Signal System
@@ -99,6 +115,52 @@ Trial_Class_System/
 - Auto-sets `ps_got_stuck = true`
 - If activity resumes, sets `ps_recovered = true`
 
+## P3 Agentic AI System
+
+### Conversion Signals (conversion_signals table)
+
+| Field | Source | Trigger Alert |
+|-------|--------|---------------|
+| `pa_stayed` | TA | No |
+| `pa_photo` | TA | No |
+| `pa_asked_price` | TA | Yes - Sales alert |
+| `pa_leaned_in` | TA | No |
+| `pa_surprised` | TA | No |
+| `ch_showed_parent` | TA | Yes - Sales alert |
+| `ch_wants_continue` | TA | Yes - Sales alert |
+| `ch_explained_parent` | TA | No |
+| `sale_qr_shown` | Sales | - |
+| `sale_deposit_taken` | Sales | - |
+| `sale_intent_tier` | Sales | Hot/Warm/Cold |
+| `rep_opened` | Auto | Report opened |
+| `rep_read_depth` | Auto | Scrolled >50% |
+| `rep_cta_clicked` | Auto | CTA button clicked |
+
+### AI Report Generation
+
+- Uses **DeepSeek API** (`deepseek-chat` model)
+- Generates bilingual reports (Chinese + English)
+- Includes learning pathway recommendations
+- CTA tier: enrolled / hot / warm / cold
+
+### Report Page Features
+
+- Route: `/report/:token` (student-app)
+- Language toggle (EN/CN)
+- Discount tier based on `created_at`:
+  - Day 1: $200 off
+  - Day 2: $100 off
+  - Day 3: $50 off
+  - After: No discount
+- Analytics tracking (open, scroll depth, CTA click)
+
+### Sales App Features
+
+- Real-time updates via Supabase Realtime
+- Highlights students with trigger signals
+- Quick actions: QR Shown, Deposit, Intent Tier
+- Sorted by hot leads first
+
 ## Production Deployment (Vercel)
 
 | App | URL | GitHub |
@@ -127,7 +189,20 @@ npm run dev
 cd ta-dashboard
 npm run dev
 # http://localhost:5174
+
+# Terminal 3: Sales App (P3)
+cd sales-app
+npm run dev
+# http://localhost:5175
 ```
+
+### Environment Variables
+
+| App | Variables |
+|-----|-----------|
+| student-app | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+| ta-dashboard | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_STUDENT_APP_URL`, `VITE_DEEPSEEK_API_KEY` |
+| sales-app | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
 
 ## Student Join Methods
 
@@ -155,7 +230,13 @@ npm run dev
 ## Key Files
 
 - `student-app/src/lib/lesson.js` - Game design options, upgrades, recovery items
+- `student-app/src/pages/ReportPage.jsx` - P3: Public report page with analytics
 - `ta-dashboard/src/lib/signalScore.js` - Conversion score calculation
+- `ta-dashboard/src/lib/reportPrompt.js` - P3: DeepSeek prompt builder
+- `ta-dashboard/src/components/ReportGenerator.jsx` - P3: AI report generation button
+- `ta-dashboard/src/components/ReportReviewPanel.jsx` - P3: Report preview/edit modal
+- `sales-app/src/App.jsx` - P3: Single-page sales dashboard
+- `p3-schema.sql` - P3: Database schema (conversion_signals, reports)
 - `Plan-v3-dimensions.md` - Complete V17 specification
 
 ## Conversion Score Formula
