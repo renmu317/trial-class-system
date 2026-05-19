@@ -99,7 +99,23 @@ Trial_Class_System/
 - Auto-sets `ps_got_stuck = true`
 - If activity resumes, sets `ps_recovered = true`
 
-## Running the Apps
+## Production Deployment (Vercel)
+
+| App | URL | GitHub |
+|-----|-----|--------|
+| Student App | https://trial-class-system.vercel.app | renmu317/trial-class-system |
+| TA Dashboard | https://ta-dashboard-xi.vercel.app | renmu317/trial-class-system |
+
+### Environment Variables (Vercel)
+
+Both apps require these environment variables in Vercel project settings:
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase anon key
+
+TA Dashboard additionally needs:
+- `VITE_STUDENT_APP_URL` - Student app URL for QR code generation
+
+## Running Locally
 
 ```bash
 # Terminal 1: Student App
@@ -117,10 +133,15 @@ npm run dev
 
 | Method | URL | Use Case |
 |--------|-----|----------|
-| Short Code | `localhost:5173` → enter 4-digit code | Laptop users |
-| URL with Code | `localhost:5173/?code=1234` | Direct link |
+| Short Code | `trial-class-system.vercel.app` → enter 4-digit code | Laptop users (recommended) |
+| URL with Code | `trial-class-system.vercel.app/?code=1234` | Direct link sharing |
 | QR Code | Scan from TA Dashboard | Phone users |
-| Legacy UUID | `localhost:5173/?session=<uuid>` | Old links |
+| Legacy UUID | `trial-class-system.vercel.app/?session=<uuid>` | Old links |
+
+### 4-Digit Join Code System
+- TA creates session → system generates random 4-digit code (1000-9999)
+- TA writes code on board or shares verbally
+- Students visit student app → enter code → enter name → start designing
 
 ## Workflow
 
