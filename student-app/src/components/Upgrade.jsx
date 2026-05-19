@@ -193,9 +193,14 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit })
   const toggleLevel = (lvl) => {
     console.log('toggleLevel called:', lvl, 'current state:', openLevels);
     const wasOpen = openLevels[lvl];
-    const newState = { ...openLevels, [lvl]: !wasOpen };
-    console.log('new state:', newState);
-    setOpenLevels(newState);
+
+    // Use functional update to avoid stale closure
+    setOpenLevels(prev => {
+      const newState = { ...prev, [lvl]: !prev[lvl] };
+      console.log('new state:', newState);
+      return newState;
+    });
+
     // Phase 2: event callback when opening medium or hard
     if (!wasOpen && (lvl === 'medium' || lvl === 'hard')) {
       onLevelOpen?.(lvl);
@@ -228,6 +233,7 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit })
         return (
           <div key={lvl} className="mb-4">
             <button
+              type="button"
               onClick={() => toggleLevel(lvl)}
               className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${cfg.color}`}
             >
