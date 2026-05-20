@@ -65,6 +65,11 @@ Trial_Class_System/
 │
 ├── supabase-schema-v17.sql   # V17 student_signals table
 ├── p3-schema.sql             # P3: conversion_signals + reports tables
+├── p3-followup-schema.sql    # P3.1: follow-up fields for reports
+├── scripts/                  # Test scripts
+│   └── clear-and-test.js     # 40-person pressure test
+├── Plan/
+│   └── P3_Dev_Plan.md        # P3/P3.1 development plan
 └── Plan-v3-dimensions.md     # V17 design document
 ```
 
@@ -147,12 +152,16 @@ Trial_Class_System/
 
 - Route: `/report/:token` (student-app)
 - Language toggle (EN/CN)
-- Discount tier based on `created_at`:
-  - Day 1: $200 off
-  - Day 2: $100 off
-  - Day 3: $50 off
-  - After: No discount
 - Analytics tracking (open, scroll depth, CTA click)
+
+### Discount Logic (P3.1 Updated)
+
+| Discount | Condition |
+|----------|-----------|
+| **-$200** | Deposit paid on-spot (`sale_deposit_taken = true`) |
+| **-$100** | Within 24h after trial ends |
+| **-$50** | 24-48h after trial ends |
+| **None** | After 48h |
 
 ### Sales App Features
 
@@ -161,21 +170,68 @@ Trial_Class_System/
 - Quick actions: QR Shown, Deposit, Intent Tier
 - Sorted by hot leads first
 
+## P3.1 Follow-up System (2026-05-19)
+
+### Double-Send Timeline
+
+| Time | Action | Trigger |
+|------|--------|---------|
+| 0-2h after trial | First send: Report | TA triggers |
+| Async | Parent behavior tracking | Auto (rep_opened, rep_shared) |
+| 24-48h | Second send: Follow-up | TA triggers |
+
+### New Database Fields (reports table)
+
+```sql
+ALTER TABLE reports ADD COLUMN followup_content_zh text;
+ALTER TABLE reports ADD COLUMN followup_content_en text;
+ALTER TABLE reports ADD COLUMN followup_sent_at timestamptz;
+```
+
+### Follow-up AI Generation
+
+- Uses parent behavior data to customize message:
+  - `rep_opened`: Did parent open the report?
+  - `rep_read_depth`: Did parent finish reading?
+  - `rep_shared`: Did parent share with family?
+- AI generates contextual follow-up (not repeating first report)
+- Located in `reportPrompt.js`: `buildFollowUpPrompt()`, `generateFollowUp()`
+
+### ReportReviewPanel Tabs
+
+| Tab | Purpose |
+|-----|---------|
+| **Report** | Original report preview/edit/send |
+| **Follow-up** | Parent behavior display + AI follow-up generation |
+
+### Sales App Banners (P3.1)
+
+| Banner | Color | Trigger |
+|--------|-------|---------|
+| Report Sent | Amber | `reports.sent_at` changes |
+| Parent Shared | Blue | `conversion_signals.rep_shared` becomes true |
+| Follow-up Sent | Pink | `reports.followup_sent_at` changes |
+
+Features:
+- Real-time via Supabase Realtime subscriptions
+- Shows intent tier and discount remaining time
+- Dismissible with X button
+
 ## Production Deployment (Vercel)
 
-| App | URL | GitHub |
-|-----|-----|--------|
-| Student App | https://trial-class-system.vercel.app | renmu317/trial-class-system |
-| TA Dashboard | https://ta-dashboard-xi.vercel.app | renmu317/trial-class-system |
+| App | URL |
+|-----|-----|
+| Student App | https://trial-class-system-zeta.vercel.app |
+| TA Dashboard | https://ta-dashboard-xi.vercel.app |
+| Sales App | https://sales-app-chi-two.vercel.app |
 
 ### Environment Variables (Vercel)
 
-Both apps require these environment variables in Vercel project settings:
-- `VITE_SUPABASE_URL` - Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Supabase anon key
-
-TA Dashboard additionally needs:
-- `VITE_STUDENT_APP_URL` - Student app URL for QR code generation
+| App | Variables |
+|-----|-----------|
+| student-app | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+| ta-dashboard | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_DEEPSEEK_API_KEY` |
+| sales-app | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
 
 ## Running Locally
 
@@ -232,12 +288,14 @@ npm run dev
 - `student-app/src/lib/lesson.js` - Game design options, upgrades, recovery items
 - `student-app/src/pages/ReportPage.jsx` - P3: Public report page with analytics
 - `ta-dashboard/src/lib/signalScore.js` - Conversion score calculation
-- `ta-dashboard/src/lib/reportPrompt.js` - P3: DeepSeek prompt builder
+- `ta-dashboard/src/lib/reportPrompt.js` - P3/P3.1: DeepSeek prompt builder + follow-up
 - `ta-dashboard/src/components/ReportGenerator.jsx` - P3: AI report generation button
-- `ta-dashboard/src/components/ReportReviewPanel.jsx` - P3: Report preview/edit modal
-- `sales-app/src/App.jsx` - P3: Single-page sales dashboard
+- `ta-dashboard/src/components/ReportReviewPanel.jsx` - P3.1: Report + Follow-up tabs
+- `sales-app/src/App.jsx` - P3.1: Sales dashboard with 3 banner types
 - `p3-schema.sql` - P3: Database schema (conversion_signals, reports)
-- `Plan-v3-dimensions.md` - Complete V17 specification
+- `p3-followup-schema.sql` - P3.1: Follow-up fields for reports table
+- `scripts/clear-and-test.js` - Pressure test script (40 students)
+- `Plan/P3_Dev_Plan.md` - P3/P3.1 development plan
 
 ## Conversion Score Formula
 
