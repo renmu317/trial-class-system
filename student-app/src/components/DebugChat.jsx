@@ -505,14 +505,38 @@ export default function DebugChat({
   };
 
   const updateChatHistory = async (chatId, newMessages) => {
-    // 过滤掉 imagePreview 等临时字段
+    // 过滤掉 imagePreview 和其他不可序列化的 blob 字段
     const dbMessages = newMessages.map(m => {
-      const { imagePreview, ...rest } = m;
+      // 只保留可序列化的字段
+      const { imagePreview, imageData, blob, file, ...rest } = m;
       return rest;
     });
-    await supabase.from('debug_sessions').update({
+
+    // 序列化测试：确保数据可以被 JSON.stringify
+    try {
+      JSON.stringify(dbMessages);
+    } catch (e) {
+      console.error('[DebugChat] JSON serialization failed:', e);
+      console.error('[DebugChat] Problematic messages:', dbMessages);
+      // 回退：只保留基本字段
+      const safeMessages = dbMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+        timestamp: m.timestamp,
+      }));
+      await supabase.from('debug_sessions').update({
+        conversation_history: safeMessages,
+      }).eq('id', chatId);
+      return;
+    }
+
+    const { error } = await supabase.from('debug_sessions').update({
       conversation_history: dbMessages,
     }).eq('id', chatId);
+
+    if (error) {
+      console.error('[DebugChat] updateChatHistory error:', error);
+    }
   };
 
   const generateChatTitle = async (chatId, firstUserMessage) => {

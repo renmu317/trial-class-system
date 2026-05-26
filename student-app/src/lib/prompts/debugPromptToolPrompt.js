@@ -4,13 +4,15 @@
  * 目标：帮助学生发现和修复 prompt 描述问题
  * Token 预算：~200 tokens
  *
- * 三轮流程：
- * - Round 1: 确认 bug，问是否在 prompt 里描述过
- * - Round 2: 问缺了什么描述
- * - Round 3: 学生写修复句子
+ * 四轮流程：
+ * - Round 1: 确认 bug 描述（不评估 fix_quality）
+ * - Round 2: 问是否在 prompt 里描述过（不评估 fix_quality）
+ * - Round 3: 问缺了什么描述（不评估 fix_quality）
+ * - Round 4: 学生写修复句子（这时才评估 fix_quality）
  *
- * 模型负责判断：
- * - fix_quality: precise/specific/vague
+ * 重要设计原则：
+ * - fix_quality 只在 Round 4 有意义（学生写修复指令时）
+ * - Round 1-3 的 fix_quality 和 student_fix 始终返回空字符串
  *
  * 代码负责：
  * - round 计数
@@ -50,6 +52,20 @@ This is FIRST round after arriving from Orchestrator. Bug is already known.
 - Start with: "Got it — [one sentence bug summary: ${bugSummary}]. Did you tell Claude about this in your description?"`
     : '';
 
+  // Round 4 才评估 fix_quality
+  const isExecutionRound = currentRound >= 4;
+
+  const fixQualityRule = isExecutionRound
+    ? `YOUR JUDGMENT on fix_quality (Round 4+ ONLY):
+- precise: feature + specific behavior + detail (e.g. "patrol left and right every 2 seconds")
+- specific: feature + behavior, missing details
+- vague: unclear what should happen
+- Extract student's fix sentence into student_fix field`
+    : `FIX_QUALITY RULE (Round 1-3):
+- fix_quality only applies in Round 4 when student writes a fix instruction
+- In Round 1-3, ALWAYS return fix_quality: "" and student_fix: ""
+- DO NOT evaluate student's response as a "fix" — they are describing the bug, not fixing it`;
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
 
 Bug: "${bugSummary}"
@@ -59,17 +75,15 @@ ${openingRule}
 ${scaffoldHint}
 
 Round guide:
-1: Confirm bug understood, ask if described in prompt
-2: Ask what description was missing
-3: Ask student to write fix sentence
+1: Confirm bug understood, ask if student told Claude about this
+2: Ask what description was missing from prompt
+3: Ask student to write a fix sentence
+4: Evaluate fix quality, set ready_to_execute if precise/specific
 
-YOUR JUDGMENT on fix_quality:
-- precise: feature + specific behavior + detail (e.g. "patrol left and right every 2 seconds")
-- specific: feature + behavior, missing details
-- vague: unclear what should happen
+${fixQualityRule}
 
 Return:
-{"response":"...","round":${currentRound},"continue":true,"student_fix":"","fix_quality":""}
+{"response":"...","round":${currentRound},"continue":true,"student_fix":"","fix_quality":"","ready_to_execute":false}
 
 [Context]
 ${contextString}`;
