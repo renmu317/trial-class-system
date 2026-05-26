@@ -1164,6 +1164,51 @@ if (isFirstAfterRoute && CONFIRMATION_WORDS.test(textContent.trim())) {
   - `buildSystemPrompt()` 改用 timeline
   - `handleSend()` 新增 isFirstAfterRoute 检测和 forceRelease 放行
 
+### 2026-05-26 序列化安全 + Prompt Tool fix_quality 时机
+
+**修复1（技术）：updateChatHistory 400 错误**
+- ❌ 只过滤 `imagePreview`，其他 blob 字段可能导致序列化失败
+- ✅ 修复：过滤更多字段 (`imagePreview`, `imageData`, `blob`, `file`)
+- ✅ 新增：JSON.stringify 测试，失败时回退到安全字段
+- 代码：
+```javascript
+const { imagePreview, imageData, blob, file, ...rest } = m;
+try {
+  JSON.stringify(dbMessages);
+} catch (e) {
+  // 回退：只保留 role/content/timestamp
+  const safeMessages = dbMessages.map(m => ({
+    role: m.role,
+    content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+    timestamp: m.timestamp,
+  }));
+}
+```
+
+**修复2（设计）：Prompt Tool 不应在 Round 1-3 评估 fix_quality**
+- ❌ Round 1 就返回 `fix_quality: "vague"`，但学生还在描述 bug，不是写修复指令
+- ✅ 修复：Round 1-3 始终返回 `fix_quality: ""` 和 `student_fix: ""`
+- ✅ Round 4 才评估修复指令质量
+
+| Round | 任务 | fix_quality |
+|-------|------|-------------|
+| 1 | 确认 bug 描述 | `""` (始终空) |
+| 2 | 问是否在 prompt 描述过 | `""` (始终空) |
+| 3 | 问缺了什么描述 | `""` (始终空) |
+| 4 | 学生写修复句子 | `precise/specific/vague` |
+
+**System Prompt 新增规则**：
+```
+FIX_QUALITY RULE (Round 1-3):
+- fix_quality only applies in Round 4 when student writes a fix instruction
+- In Round 1-3, ALWAYS return fix_quality: "" and student_fix: ""
+- DO NOT evaluate student's response as a "fix" — they are describing the bug, not fixing it
+```
+
+**文件变更**：
+- 修改: `DebugChat.jsx` - updateChatHistory 序列化安全
+- 修改: `prompts/debugPromptToolPrompt.js` - fix_quality 只在 Round 4 评估
+
 ### 2026-05-23 API Key 安全迁移
 
 **DeepSeek API Key 安全架构**：
