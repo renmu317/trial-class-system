@@ -1126,6 +1126,44 @@ default → 默认 Easy 卡片 (Lesson 1)
 - 修改: `AgentBridge.js` (invalidateTimelineCache 同步)
 - 修改: `ta-dashboard/Dashboard.jsx` (End Class 调用 compress-session)
 
+### 2026-05-26 DebugChat.jsx 关键问题修复
+
+**问题1：buildStudentContext 未完成迁移**
+- ❌ 仍使用旧的 `buildStudentContext()` + `formatContext`
+- ✅ 修复：改用 `getTimeline()` + `formatForDebug()`
+- 效果：Debug Agent 现在能读取 Gate 1/2 记录，实现跨 Tab 上下文共享
+
+**问题2：forceRelease 路径没有实际放行**
+- ❌ 只打 log，仍然调用 API
+- ✅ 修复：超过最大轮次时直接返回，设置 `executionPayload`
+- 代码：
+```javascript
+if (preCheck.forceRelease) {
+  setExecutionPayload({ type: 'prompt_fix', fixText: textContent });
+  return;  // ← 必须 return，不继续调用 API
+}
+```
+
+**问题3：isFirstAfterRoute 标记未被使用**
+- ❌ 路由切换后学生说「ok」仍发给 Tool
+- ✅ 修复：在 `preCheckInput` 之前检测确认词并忽略
+- 代码：
+```javascript
+if (isFirstAfterRoute && CONFIRMATION_WORDS.test(textContent.trim())) {
+  setInputText('');
+  setIsFirstAfterRoute(false);
+  return;  // Tool 开场已由 Agent 生成，不需要学生触发
+}
+```
+
+**文件变更**：
+- 修改: `DebugChat.jsx` (+53/-18 行)
+  - 移除 `buildStudentContext` 和 `formatContext` 导入
+  - 新增 `getSuccessfulUpgradesFromTimeline` 导入
+  - 新增 `CONFIRMATION_WORDS` 正则
+  - `buildSystemPrompt()` 改用 timeline
+  - `handleSend()` 新增 isFirstAfterRoute 检测和 forceRelease 放行
+
 ### 2026-05-23 API Key 安全迁移
 
 **DeepSeek API Key 安全架构**：
