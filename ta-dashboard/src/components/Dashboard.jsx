@@ -14,6 +14,10 @@ export default function Dashboard({ session, taName, onExit }) {
   const [events, setEvents] = useState([])
   const [stuckStudents, setStuckStudents] = useState(new Set())
   const [sessionStatus, setSessionStatus] = useState(session.status)
+
+  // Debug: log session info
+  console.log('Dashboard loaded with session:', session)
+  console.log('Session status:', session.status, '-> state:', sessionStatus)
   const [showQR, setShowQR] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [activeReport, setActiveReport] = useState(null)  // P3: Report being reviewed
@@ -164,13 +168,55 @@ export default function Dashboard({ session, taName, onExit }) {
       return
     }
 
-    const { error } = await supabase
+    console.log('Ending session:', session.id)
+
+    const { data, error } = await supabase
       .from('sessions')
       .update({ status: 'ended' })
       .eq('id', session.id)
+      .select()
 
-    if (!error) {
-      setSessionStatus('ended')
+    if (error) {
+      console.error('Failed to end session:', error)
+      alert('Failed to end session: ' + error.message)
+      return
+    }
+
+    console.log('Session ended successfully:', data)
+    setSessionStatus('ended')
+
+    // V17 Phase B: 压缩每个学生的 session timeline
+    console.log('Compressing session timelines for', students.length, 'students...')
+    const compressionResults = await Promise.allSettled(
+      students.map(async (student) => {
+        try {
+          const { data: result, error: compressError } = await supabase.functions.invoke('compress-session', {
+            body: { studentId: student.id, sessionId: session.id }
+          })
+          if (compressError) {
+            console.warn(`Failed to compress timeline for ${student.name}:`, compressError)
+            return { student: student.name, success: false, error: compressError }
+          }
+          console.log(`Compressed timeline for ${student.name}:`, result)
+          return { student: student.name, success: true, ...result }
+        } catch (err) {
+          console.warn(`Error compressing timeline for ${student.name}:`, err)
+          return { student: student.name, success: false, error: err.message }
+        }
+      })
+    )
+
+    // 统计压缩结果
+    const successful = compressionResults.filter(r => r.status === 'fulfilled' && r.value?.success).length
+    const failed = compressionResults.length - successful
+    console.log(`Timeline compression complete: ${successful} successful, ${failed} failed`)
+
+    // 如果有学生生成了 profile，显示提示
+    const profilesGenerated = compressionResults.filter(
+      r => r.status === 'fulfilled' && r.value?.profileGenerated
+    ).length
+    if (profilesGenerated > 0) {
+      console.log(`${profilesGenerated} student profile(s) generated/updated`)
     }
   }
 
@@ -254,14 +300,19 @@ export default function Dashboard({ session, taName, onExit }) {
                 <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
               </button>
 
-              {sessionStatus === 'running' && (
+              {/* End Class button - show for running sessions */}
+              {sessionStatus === 'running' ? (
                 <button
                   onClick={handleEndSession}
                   className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium"
                 >
                   <Square size={16} />
-                  End
+                  End Class
                 </button>
+              ) : (
+                <span className="px-3 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm">
+                  Class Ended
+                </span>
               )}
 
               <button
