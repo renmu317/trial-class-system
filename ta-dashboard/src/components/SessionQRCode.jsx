@@ -2,11 +2,12 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Copy, Check, Monitor, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 
-export default function SessionQRCode({ sessionId, joinCode }) {
+export default function SessionQRCode({ sessionId, joinCode, lessonId }) {
   const [copied, setCopied] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
 
   const studentAppUrl = import.meta.env.VITE_STUDENT_APP_URL || 'http://localhost:5173'
+  // Unified entry: no lesson parameter needed, lesson is determined by session's lesson_type
   const sessionUrl = `${studentAppUrl}/?code=${joinCode || sessionId}`
 
   const handleCopyUrl = async () => {

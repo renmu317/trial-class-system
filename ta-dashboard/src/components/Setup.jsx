@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Plus, Users, Check } from 'lucide-react'
+import { Plus, Users, Check, Clock, AlertTriangle, BookOpen } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import SessionQRCode from './SessionQRCode'
+
+// Available lessons
+const AVAILABLE_LESSONS = [
+  { id: 'lesson1', name: 'Lesson 1: Catch Falling Game', emoji: '🎮' },
+  { id: 'lesson2', name: 'Lesson 2: AI Maze Game', emoji: '🧩' },
+];
 
 export default function Setup({ onStart }) {
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
   const [taName, setTaName] = useState('')
   const [newSessionName, setNewSessionName] = useState('')
+  const [newSessionDuration, setNewSessionDuration] = useState(90) // V17: 默认90分钟
+  const [newSessionLesson, setNewSessionLesson] = useState('lesson1') // 默认 Lesson 1
   const [showNewSession, setShowNewSession] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -16,7 +24,7 @@ export default function Setup({ onStart }) {
     const loadSessions = async () => {
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, name, status, created_at, join_code')
+        .select('id, name, status, created_at, join_code, scheduled_end_at, lesson_type')
         .order('created_at', { ascending: false })
 
       if (!error && data) {
@@ -39,27 +47,48 @@ export default function Setup({ onStart }) {
 
     const joinCode = generateJoinCode()
 
-    const { data, error } = await supabase
+    // V17: 计算结束时间
+    const scheduledEndAt = new Date(Date.now() + newSessionDuration * 60 * 1000).toISOString()
+
+    // Try with all columns first
+    let result = await supabase
       .from('sessions')
       .insert({
         name: newSessionName.trim(),
         status: 'running',
-        join_code: joinCode
+        join_code: joinCode,
+        scheduled_end_at: scheduledEndAt,
+        lesson_type: newSessionLesson  // 写入课程类型
       })
       .select()
       .single()
 
-    if (error) {
-      console.error('Failed to create session:', error)
-      alert('Failed to create session: ' + error.message)
+    // If failed due to missing column, try without newer columns
+    if (result.error && result.error.code === 'PGRST204') {
+      console.warn('Some columns not found, creating session with basic fields')
+      result = await supabase
+        .from('sessions')
+        .insert({
+          name: newSessionName.trim(),
+          status: 'running',
+          join_code: joinCode
+        })
+        .select()
+        .single()
+    }
+
+    if (result.error) {
+      console.error('Failed to create session:', result.error)
+      alert('Failed to create session: ' + result.error.message)
       return
     }
 
-    if (data) {
-      setSessions([data, ...sessions])
-      setSelectedSession(data)
+    if (result.data) {
+      setSessions([result.data, ...sessions])
+      setSelectedSession(result.data)
       setShowNewSession(false)
       setNewSessionName('')
+      setNewSessionDuration(90) // 重置为默认值
     }
   }
 
@@ -112,9 +141,30 @@ export default function Setup({ onStart }) {
                       }`}
                   >
                     <div>
-                      <div className="font-medium text-gray-800">{session.name}</div>
+                      <div className="font-medium text-gray-800 flex items-center gap-1.5">
+                        {session.name}
+                        {/* 课程类型标签 */}
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          session.lesson_type === 'lesson2'
+                            ? 'bg-purple-100 text-purple-600'
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {session.lesson_type === 'lesson2' ? '🧩 Maze' : '🎮 Catch'}
+                        </span>
+                        {/* V17: 没有结束时间的提示 */}
+                        {!session.scheduled_end_at && session.status === 'running' && (
+                          <span title="No end time set - Agent time features may be limited">
+                            <AlertTriangle size={14} className="text-amber-500" />
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-400">
                         {new Date(session.created_at).toLocaleDateString()}
+                        {session.scheduled_end_at && (
+                          <span className="ml-2 text-blue-500">
+                            Ends {new Date(session.scheduled_end_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded ${
@@ -143,6 +193,40 @@ export default function Setup({ onStart }) {
                     if (e.key === 'Enter') handleCreateSession()
                   }}
                 />
+
+                {/* Lesson selector */}
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen size={16} className="text-gray-500" />
+                  <span className="text-sm text-gray-600">Lesson:</span>
+                  <select
+                    value={newSessionLesson}
+                    onChange={(e) => setNewSessionLesson(e.target.value)}
+                    className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                  >
+                    {AVAILABLE_LESSONS.map(lesson => (
+                      <option key={lesson.id} value={lesson.id}>
+                        {lesson.emoji} {lesson.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* V17: 课时时长选择器 */}
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock size={16} className="text-gray-500" />
+                  <span className="text-sm text-gray-600">Duration:</span>
+                  <select
+                    value={newSessionDuration}
+                    onChange={(e) => setNewSessionDuration(parseInt(e.target.value))}
+                    className="px-3 py-1.5 border rounded-lg text-sm"
+                  >
+                    <option value={60}>60 min</option>
+                    <option value={75}>75 min</option>
+                    <option value={90}>90 min (default)</option>
+                    <option value={120}>120 min</option>
+                  </select>
+                </div>
+
                 <div className="flex gap-2">
                   <button
                     onClick={handleCreateSession}
@@ -202,7 +286,11 @@ export default function Setup({ onStart }) {
 
           {/* Right: Join Code & QR Code (shown when session selected) */}
           {selectedSession && (
-            <SessionQRCode sessionId={selectedSession.id} joinCode={selectedSession.join_code} />
+            <SessionQRCode
+              sessionId={selectedSession.id}
+              joinCode={selectedSession.join_code}
+              lessonId={selectedSession.lesson_type || 'lesson1'}
+            />
           )}
         </div>
       </div>

@@ -235,11 +235,24 @@ function ChatWindow({
     );
   }
 
+  // 过滤掉内部系统消息（路由标记等），只显示给学生的消息
+  const visibleMessages = messages.filter(msg => {
+    // 过滤掉路由标记
+    if (msg.content?.includes('[ROUTED-TO-')) return false;
+    // 过滤掉其他工具结果标记
+    if (msg.isToolResult) return false;
+    // 过滤掉其他内部标记
+    if (msg.content?.includes('[ORCHESTRATOR-SUMMARY]')) return false;
+    if (msg.content?.includes('[CHAT-INSIGHT]')) return false;
+    if (msg.content?.includes('[SWITCH-TO-DEBUG]')) return false;
+    return true;
+  });
+
   return (
     <div className="flex-1 flex flex-col bg-white">
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((msg, i) => (
+        {visibleMessages.map((msg, i) => (
           <div
             key={i}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -479,8 +492,10 @@ export default function DebugChat({
       .single();
 
     if (data) {
+      const mode = data.current_mode || 'debug_orchestrator';
       setMessages(data.conversation_history || []);
-      setCurrentMode(data.current_mode || 'debug_orchestrator');
+      setCurrentMode(mode);
+      currentModeRef.current = mode;  // 同步更新 ref（修复竞态）
       setBugSummary(data.bug_description || '');
       setRelatedUpgradeId(data.related_upgrade_id || null);  // Gate 2 重设计
       setExecutionPayload(null);

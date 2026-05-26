@@ -3,7 +3,11 @@
  *
  * Builds the API request for generating student reports
  * based on trial class performance data.
+ *
+ * V17: Added buildAgentSection for language precision training data
  */
+
+import { supabase } from './supabase';
 
 // Default 20-lesson course outline (placeholder - replace with actual content)
 const DEFAULT_COURSE_OUTLINE = `
@@ -382,4 +386,99 @@ export async function generateFollowUp(apiKey, reportData, behaviorData, convers
   } catch (e) {
     throw new Error(`Failed to parse follow-up response: ${content.slice(0, 200)}`);
   }
+}
+
+/**
+ * V17: Build agent section for report
+ *
+ * Generates language precision training summary from agent_sessions data
+ *
+ * @param {string} studentId - Student UUID
+ * @returns {Promise<string>} Report section text
+ */
+export async function buildAgentSection(studentId) {
+  const { data, error } = await supabase
+    .from('agent_sessions')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error || !data || data.length === 0) {
+    return '';
+  }
+
+  // 统计
+  const earlyReleaseCount = data.filter(s => s.early_release).length;
+  const round1Count = data.filter(s => s.actual_rounds === 1 && !s.early_release).length;
+  const round2Count = data.filter(s => s.actual_rounds === 2).length;
+  const round3Count = data.filter(s => s.actual_rounds === 3).length;
+  const diagnosedCount = data.filter(s => s.student_diagnosed).length;
+
+  // 收集所有 best_student_quote
+  const bestQuotes = data
+    .filter(s => s.best_student_quote)
+    .map(s => ({
+      upgrade: s.target_upgrade_label,
+      quote: s.best_student_quote,
+    }));
+
+  // 生成报告语言
+  let section = `\n\n### 语言精确度训练\n`;
+
+  if (earlyReleaseCount > 0) {
+    section += `- ${earlyReleaseCount} 次一轮通过（语言表达清晰）\n`;
+  }
+  if (round2Count > 0) {
+    section += `- ${round2Count} 次两轮完成（需要适度引导）\n`;
+  }
+  if (round3Count > 0) {
+    section += `- ${round3Count} 次三轮完成（需要结构化辅助）\n`;
+  }
+  if (diagnosedCount > 0) {
+    section += `- 孩子能够识别自己的 prompt 中缺失的内容（发现问题的能力）\n`;
+  }
+
+  // 引用学生原话（报告亮点）
+  if (bestQuotes.length > 0) {
+    section += `\n**孩子的精彩表达**:\n`;
+    bestQuotes.forEach(q => {
+      section += `- 关于「${q.upgrade}」：「${q.quote}」\n`;
+    });
+  }
+
+  return section;
+}
+
+/**
+ * V17: Get agent session summary for a student
+ *
+ * @param {string} studentId - Student UUID
+ * @returns {Promise<Object>} Summary object with counts
+ */
+export async function getAgentSessionSummary(studentId) {
+  const { data, error } = await supabase
+    .from('agent_sessions')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error || !data) {
+    return {
+      total: 0,
+      earlyRelease: 0,
+      round2: 0,
+      round3: 0,
+      diagnosed: 0,
+      pendingVerify: 0,
+    };
+  }
+
+  return {
+    total: data.length,
+    earlyRelease: data.filter(s => s.early_release).length,
+    round2: data.filter(s => s.actual_rounds === 2).length,
+    round3: data.filter(s => s.actual_rounds === 3).length,
+    diagnosed: data.filter(s => s.student_diagnosed).length,
+    pendingVerify: data.filter(s => s.gate1_completed && s.upgrade_appeared === null).length,
+    gate2Retry: data.filter(s => s.gate2_mode === 'retry').length,
+    gate2Diagnose: data.filter(s => s.gate2_mode === 'diagnose').length,
+  };
 }

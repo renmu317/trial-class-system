@@ -1,10 +1,13 @@
-// Phase 1 原版 + Phase 2 event callback
+// Phase 1 原版 + Phase 2 event callback + Multi-lesson support
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { RECOVERY } from '../lib/lesson';
 
-export default function Recovery({ onHelpOpen }) {
+export default function Recovery({ onHelpOpen, lessonConfig }) {
   const [openId, setOpenId] = useState(null);
+
+  // Use lessonConfig if provided, otherwise fallback to default RECOVERY
+  const recovery = lessonConfig?.recovery || RECOVERY;
 
   const handleClick = (itemId) => {
     const newId = openId === itemId ? null : itemId;
@@ -23,7 +26,7 @@ export default function Recovery({ onHelpOpen }) {
       </div>
 
       <div className="space-y-3">
-        {RECOVERY.map((item) => (
+        {recovery.map((item) => (
           <button
             key={item.id}
             onClick={() => handleClick(item.id)}

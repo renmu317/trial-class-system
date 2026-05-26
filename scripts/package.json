@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "pressure-test": "node pressure-test.js",
-    "cleanup": "node cleanup-test-data.js"
+    "cleanup": "node cleanup-test-data.js",
+    "deduplicate": "node deduplicate-students.js",
+    "deduplicate:confirm": "node deduplicate-students.js --confirm"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"

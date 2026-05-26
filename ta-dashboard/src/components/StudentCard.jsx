@@ -1,8 +1,9 @@
-// V17 StudentCard with signal checkboxes + conversion signals + report generation
+// V17 StudentCard with signal checkboxes + conversion signals + report generation + Agent signals
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle, Users, FileText } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle, Users, FileText, MessageCircle, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { calculateConversionScore, getDimensionStatus } from '../lib/signalScore'
+import { getAgentSessionSummary } from '../lib/reportPrompt'
 import ReportGenerator from './ReportGenerator'
 
 // Dimension display config
@@ -153,6 +154,8 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
   const [conversionExpanded, setConversionExpanded] = useState(false)
   const [conversionSignals, setConversionSignals] = useState({})
   const [generatedReport, setGeneratedReport] = useState(null)
+  const [agentSummary, setAgentSummary] = useState(null)  // V17: Agent session summary
+  const [debugSummary, setDebugSummary] = useState(null)  // Debug sessions summary
 
   // Calculate conversion score and dimension status
   const conversionScore = calculateConversionScore(signals)
@@ -173,6 +176,47 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
     }
 
     fetchConversionSignals()
+  }, [student.id])
+
+  // V17: Fetch agent session summary
+  useEffect(() => {
+    const fetchAgentSummary = async () => {
+      try {
+        const summary = await getAgentSessionSummary(student.id)
+        setAgentSummary(summary)
+      } catch (e) {
+        console.warn('Could not fetch agent summary:', e)
+      }
+    }
+
+    fetchAgentSummary()
+  }, [student.id])
+
+  // Fetch debug sessions summary
+  useEffect(() => {
+    const fetchDebugSummary = async () => {
+      try {
+        const { data: debugSessions } = await supabase
+          .from('debug_sessions')
+          .select('bug_type, resolved, needs_ta_help')
+          .eq('student_id', student.id)
+
+        if (debugSessions && debugSessions.length > 0) {
+          setDebugSummary({
+            promptFixed: debugSessions.filter(d => d.bug_type === 'prompt' && d.resolved).length,
+            codeFixed: debugSessions.filter(d => d.bug_type === 'code' && d.resolved).length,
+            resets: debugSessions.filter(d => d.bug_type === 'reset').length,
+            unresolved: debugSessions.filter(d => !d.resolved).length,
+            needsHelp: debugSessions.some(d => d.needs_ta_help),
+            total: debugSessions.length,
+          })
+        }
+      } catch (e) {
+        console.warn('Could not fetch debug summary:', e)
+      }
+    }
+
+    fetchDebugSummary()
   }, [student.id])
 
   // Get recent events for this student (last 3)
@@ -332,6 +376,77 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
             expanded={conversionExpanded}
             onToggleExpand={() => setConversionExpanded(!conversionExpanded)}
           />
+
+          {/* V17: Agent Language Precision signals */}
+          {agentSummary && agentSummary.total > 0 && (
+            <div className={`border rounded-lg p-2 ${
+              agentSummary.round3 > 0 && agentSummary.pendingVerify > 0
+                ? 'bg-red-50 border-red-200'
+                : 'bg-indigo-50 border-indigo-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <MessageCircle size={14} className="text-indigo-600" />
+                <span className="text-xs font-semibold text-gray-700">LANGUAGE PRECISION</span>
+                {/* V17: 高优先级信号 - 红色高亮 */}
+                {agentSummary.round3 > 0 && agentSummary.pendingVerify > 0 && (
+                  <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                    <AlertTriangle size={10} /> NEEDS HELP
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                {agentSummary.earlyRelease > 0 && (
+                  <span className="text-green-600">🟢 {agentSummary.earlyRelease}× 1-round pass</span>
+                )}
+                {agentSummary.round2 > 0 && (
+                  <span className="text-yellow-600">🟡 {agentSummary.round2}× 2-round</span>
+                )}
+                {agentSummary.round3 > 0 && (
+                  <span className="text-red-600">🔴 {agentSummary.round3}× 3-round</span>
+                )}
+                {agentSummary.diagnosed > 0 && (
+                  <span className="text-blue-600">💡 {agentSummary.diagnosed}× self-diagnosed</span>
+                )}
+                {agentSummary.pendingVerify > 0 && (
+                  <span className="text-orange-600">⏳ {agentSummary.pendingVerify}× pending verify</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Debug Sessions signals */}
+          {debugSummary && debugSummary.total > 0 && (
+            <div className={`border rounded-lg p-2 ${
+              debugSummary.needsHelp
+                ? 'bg-red-50 border-red-200'
+                : 'bg-orange-50 border-orange-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <AlertCircle size={14} className="text-orange-600" />
+                <span className="text-xs font-semibold text-gray-700">DEBUG ACTIVITY</span>
+                {/* 需要 TA 介入 - 红色高亮 */}
+                {debugSummary.needsHelp && (
+                  <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                    <AlertTriangle size={10} /> NEEDS TA HELP
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                {debugSummary.promptFixed > 0 && (
+                  <span className="text-green-600">🐛 prompt×{debugSummary.promptFixed}</span>
+                )}
+                {debugSummary.codeFixed > 0 && (
+                  <span className="text-blue-600">🔧 code×{debugSummary.codeFixed}</span>
+                )}
+                {debugSummary.resets > 0 && (
+                  <span className="text-purple-600">🔄 reset×{debugSummary.resets}</span>
+                )}
+                {debugSummary.unresolved > 0 && (
+                  <span className="text-red-600">⚠️ unresolved×{debugSummary.unresolved}</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Recent events */}
           {studentEvents.length > 0 && (
