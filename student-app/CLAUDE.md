@@ -1241,6 +1241,62 @@ const modeForProcessing = currentModeRef.current;  // 处理响应
 **文件变更**：
 - 修改: `DebugChat.jsx` (+22/-11 行)
 
+### 2026-05-26 Gate 2 重设计：静默标记
+
+**核心改变**：Gate 2 从多轮对话 Agent 变成一行代码
+
+**之前**：
+```
+学生返回 → Agent 问「出现了吗」→ 多轮对话 → 记录结果
+```
+
+**之后**：
+```
+学生返回 → 静默标记 appeared=true → 零对话
+学生去 Debug → Debug Agent 记录 appeared=false → 自然触发
+```
+
+**为什么重设计**：
+- 学生觉得「出现了吗」问题没有意义，增加负担
+- 认知归因的价值已被 Debug Agent 的 Prompt Tool Round 2 覆盖
+- 学生真正遇到问题时自然发生归因，不需要强制追问
+
+**数据逻辑**：
+
+| upgrade_appeared | gate2_inferred | 含义 |
+|-----------------|----------------|------|
+| `true` | `true` | 推断值：学生返回但没去 Debug |
+| `true` | `false` | 旧数据：迁移前的 Gate 2 确认 |
+| `false` | `false` | 真实值：Debug 记录学生遇到问题 |
+| `null` | - | 还没返回过 Prompt Tab |
+
+**AgentBridge.js 变更**：
+```javascript
+// 之前：触发 Gate 2 Agent
+_onOpenPanel({ mode: 'gate2', agenda, gate2Mode, ... });
+
+// 之后：静默标记
+await markPendingUpgradesAsAppeared(studentId, sessionId);
+// 批量更新: upgrade_appeared=true, gate2_inferred=true
+```
+
+**DebugChat.jsx 变更**：
+- 新增 `relatedUpgradeId` state
+- `handleGoGenerate()`: 如果有 `relatedUpgradeId`，更新 `agent_sessions.upgrade_appeared=false`
+
+**数据库变更**：
+```sql
+ALTER TABLE agent_sessions
+  ADD COLUMN IF NOT EXISTS gate2_inferred boolean DEFAULT false;
+```
+
+**文件变更**：
+- 修改: `AgentBridge.js` - 替换 handlePromptTabRevisited
+- 修改: `DebugChat.jsx` - 添加 relatedUpgradeId 追踪
+- 新增: `gate2-redesign-schema.sql`
+
+**注意**：AgentPanel.jsx 中的 gate2 代码保留但不再触发（安全起见）
+
 ### 2026-05-23 API Key 安全迁移
 
 **DeepSeek API Key 安全架构**：
