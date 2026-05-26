@@ -890,7 +890,15 @@ export default function DebugChat({
 
       // 处理路由（Orchestrator 分类后切换 mode）
       if (response.route && response.route !== 'pending') {
-        await handleRoute(response.route, response.bug_summary, response.related_upgrade, updatedMessages);
+        // 路由时，先添加 Orchestrator 的最终响应，再添加路由标记
+        const messagesBeforeRoute = [...updatedMessages, {
+          role: 'assistant',
+          content: response.response,
+          timestamp: new Date().toISOString(),
+        }];
+        await handleRoute(response.route, response.bug_summary, response.related_upgrade, messagesBeforeRoute);
+        // 路由后直接返回，不再执行后续的 setMessages
+        return;
       }
 
       // 处理 Reset Phase 1 的步骤切换
@@ -938,12 +946,15 @@ export default function DebugChat({
       if (currentMode === 'debug_orchestrator') {
         if (response.continue !== false) {
           orchestratorRoundCounter.current.increment();
+          console.log('[DebugChat] Orchestrator round incremented to:', orchestratorRoundCounter.current.get());
         }
       } else {
         if (response.continue !== false) {
           toolRoundCounter.current.increment();
+          console.log('[DebugChat] Tool round incremented to:', toolRoundCounter.current.get());
+        } else {
+          console.log('[DebugChat] Tool round NOT incremented (continue=false), staying at:', toolRoundCounter.current.get());
         }
-        // isFirstAfterRoute 已在 handleSend 开头处理，不再需要这里
       }
 
       // 自动生成 chat 标题
@@ -1003,6 +1014,7 @@ export default function DebugChat({
 
     // V17 Phase B: 重置 Tool round counter
     toolRoundCounter.current.reset();
+    console.log('[DebugChat] handleRoute: Tool round reset to 1, isFirstAfterRoute=true');
 
     // 更新 DB 记录
     await supabase.from('debug_sessions').update({
