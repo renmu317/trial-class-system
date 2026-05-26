@@ -459,8 +459,7 @@ async function markPendingUpgradesAsAppeared(studentId, sessionId) {
     .update({
       upgrade_appeared: true,
       gate2_failure_type: null,
-      // 标记这是推断值，不是学生确认的
-      gate2_inferred: true,
+      // gate2_inferred: true,  // TODO: 等数据库迁移后启用
     })
     .in('id', ids);
 

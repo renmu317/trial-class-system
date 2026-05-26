@@ -1121,7 +1121,7 @@ export default function DebugChat({
           .update({
             upgrade_appeared: false,           // Debug 说明没有正常出现
             gate2_failure_type: currentMode === 'debug_prompt' ? 'no_prompt' : 'prompt_ignored',
-            gate2_inferred: false,             // 这是真实值，不是推断
+            // gate2_inferred: false,          // TODO: 等数据库迁移后启用
           })
           .eq('student_id', studentId)
           .eq('target_upgrade_id', relatedUpgradeId);
