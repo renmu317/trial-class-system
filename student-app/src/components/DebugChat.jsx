@@ -570,17 +570,25 @@ export default function DebugChat({
       return;
     }
 
+    // 调试日志：显示将要保存的数据
+    console.log('[updateChatHistory] Saving', dbMessages.length, 'messages, size:', JSON.stringify(dbMessages).length, 'bytes');
+
     const { error } = await supabase.from('debug_sessions').update({
       conversation_history: dbMessages,
     }).eq('id', chatId);
 
     if (error) {
-      console.error('[DebugChat] updateChatHistory error:', error.code, error.message);
+      // 详细错误日志，帮助诊断 400 Bad Request
+      console.error('[updateChatHistory] Supabase error:', JSON.stringify(error));
+      console.error('[updateChatHistory] Failed data sample:', JSON.stringify(dbMessages[0]));
+      console.error('[updateChatHistory] Total messages:', dbMessages.length);
+      console.error('[updateChatHistory] Data size:', JSON.stringify(dbMessages).length, 'bytes');
+
       // 如果还是失败，尝试最小化保存
       if (error.code === 'PGRST204' || error.message?.includes('too large')) {
         const minimal = dbMessages.slice(-10).map(m => ({
           role: m.role,
-          content: m.content.slice(0, 200),
+          content: typeof m.content === 'string' ? m.content.slice(0, 200) : '[non-string]',
           timestamp: m.timestamp,
         }));
         await supabase.from('debug_sessions').update({
