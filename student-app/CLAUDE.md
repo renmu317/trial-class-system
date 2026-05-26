@@ -1209,6 +1209,38 @@ FIX_QUALITY RULE (Round 1-3):
 - 修改: `DebugChat.jsx` - updateChatHistory 序列化安全
 - 修改: `prompts/debugPromptToolPrompt.js` - fix_quality 只在 Round 4 评估
 
+### 2026-05-26 currentMode 竞态条件修复
+
+**问题**：路由切换后，handleSend() 仍使用旧的 currentMode 构建 System Prompt
+
+**根本原因**：
+- `handleRoute()` 调用 `setCurrentMode(newMode)` 是 React 异步状态更新
+- `handleSend()` 下次执行时可能还读到旧的 `currentMode` 值
+- 导致路由到 Tool 后，第一轮消息仍用 Orchestrator 的 System Prompt
+
+**解决方案**：使用 `useRef` 同步存储 mode
+```javascript
+// V17 修复：用 ref 同步存储 currentMode，避免 setState 异步竞态
+const currentModeRef = useRef('debug_orchestrator');
+
+// handleRoute() 里同步更新 ref + 异步更新 state
+currentModeRef.current = newMode;  // 同步（逻辑用）
+setCurrentMode(newMode);           // 异步（UI 渲染用）
+
+// handleSend() 里使用 ref
+const activeMode = currentModeRef.current;  // 构建 System Prompt
+const modeForProcessing = currentModeRef.current;  // 处理响应
+```
+
+**修改范围**：
+- `handleSend()`: API 调用使用 `activeMode = currentModeRef.current`
+- `handleSend()`: 响应处理使用 `modeForProcessing = currentModeRef.current`
+- `handleRoute()`: 先更新 ref 再更新 state
+- 新增调试日志：`[DebugChat] Calling agent with mode: X round: Y`
+
+**文件变更**：
+- 修改: `DebugChat.jsx` (+22/-11 行)
+
 ### 2026-05-23 API Key 安全迁移
 
 **DeepSeek API Key 安全架构**：
