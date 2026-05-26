@@ -35,8 +35,11 @@ import {
   invalidateCache
 } from '../lib/timeline';
 
-// 旧架构的 context 函数（逐步迁移）
-import { buildStudentContext, formatContext } from '../lib/AgentBridge';
+// V17 Phase B: 从 timeline 获取成功的 Upgrade（用于 Reset Tool）
+import { getSuccessfulUpgrades as getSuccessfulUpgradesFromTimeline } from '../lib/timeline';
+
+// 确认词正则（用于 isFirstAfterRoute 检测）
+const CONFIRMATION_WORDS = /^(ok|okay|yes|no|sure|good|great|yeah|yep|got\s*it|fine|alright|k|y|n)\.?$/i;
 
 // Supabase Edge Function URL for DeepSeek proxy (用于 vision 模式)
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -521,33 +524,31 @@ export default function DebugChat({
   };
 
   // =====================================================
-  // 构建 System Prompt (使用新架构的 prompts)
+  // 构建 System Prompt (使用新架构的 prompts + timeline)
   // =====================================================
 
   const buildSystemPrompt = async (mode) => {
-    // 使用旧架构的 context（后续迁移到 timeline）
-    const context = await buildStudentContext(studentId, sessionId, currentPrompt);
+    // V17 Phase B: 使用 getTimeline + formatForDebug 替代 buildStudentContext
+    const timeline = await getTimeline(studentId, sessionId);
+    const contextString = formatForDebug(timeline, currentPrompt);
 
     if (mode === 'debug_orchestrator') {
-      const contextString = formatContext.forDebugOrchestrator(context);
       return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), qState);
     } else if (mode === 'debug_prompt') {
-      const relatedUpgrade = context.upgradeSummaries.find(s => s.upgradeLabel === bugSummary);
-      const contextString = formatContext.forDebugPrompt(context, bugSummary, relatedUpgrade);
       const maxRounds = getMaxRounds('debug_prompt');
       return buildPromptToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
         attemptCount,
         isFirstAfterRoute,
       });
     } else if (mode === 'debug_code') {
-      const contextString = formatContext.forDebugCode(context, bugSummary);
       const maxRounds = getMaxRounds('debug_code');
       return buildCodeToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
         attemptCount,
       });
     } else if (mode === 'debug_reset_phase1') {
-      const contextString = formatContext.forReset(context, bugSummary);
-      setSuccessfulUpgrades(context.successfulUpgrades);
+      // 从 timeline 获取成功的 Upgrade 列表
+      const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
+      setSuccessfulUpgrades(upgrades);
       return buildResetToolPrompt(contextString, bugSummary, resetStep, selectedUpgrades, attemptCount);
     }
 
@@ -709,8 +710,21 @@ export default function DebugChat({
       orchestratorRound: orchestratorRoundCounter.current.get(),
       toolRound: toolRoundCounter.current.get(),
       inputText: textContent,
-      hasImage
+      hasImage,
+      isFirstAfterRoute
     });
+
+    // V17 Phase B 问题3修复：路由刚切换后的第一条消息
+    // 如果是确认词（ok/yes），直接忽略，Tool 开场已经由 Agent 生成
+    if (isFirstAfterRoute && !hasImage) {
+      if (CONFIRMATION_WORDS.test(textContent.trim())) {
+        console.log('[DebugChat] Ignoring confirmation word after route switch');
+        setInputText('');
+        setIsFirstAfterRoute(false);
+        return;
+      }
+      setIsFirstAfterRoute(false);
+    }
 
     // V17 Phase B: 代码层预检（仅非图片模式）
     if (!hasImage) {
@@ -748,10 +762,34 @@ export default function DebugChat({
           return;
         }
 
-        // 超过最大轮次：强制放行
+        // V17 Phase B 问题2修复：超过最大轮次，强制放行，不调用 API
         if (preCheck.forceRelease) {
           console.log('[DebugChat] Force release due to max rounds');
-          // 继续处理，但设置放行
+
+          const userMessage = {
+            role: 'user',
+            content: textContent,
+            timestamp: new Date().toISOString(),
+          };
+          const forceMessage = {
+            role: 'assistant',
+            content: "Okay, let's try your fix and see if it works.",
+            timestamp: new Date().toISOString(),
+          };
+
+          const updatedMessages = [...messages, userMessage, forceMessage];
+          setMessages(updatedMessages);
+          setInputText('');
+          await updateChatHistory(activeChatId, updatedMessages);
+
+          // 设置放行 payload
+          setExecutionPayload({
+            type: currentMode === 'debug_prompt' ? 'prompt_fix' :
+                  currentMode === 'debug_code' ? 'code_fix' : 'reset',
+            fixText: textContent,
+          });
+
+          return;
         }
       }
     }
@@ -881,10 +919,7 @@ export default function DebugChat({
         if (response.continue !== false) {
           toolRoundCounter.current.increment();
         }
-        // 第一次响应后，关闭 isFirstAfterRoute 标记
-        if (isFirstAfterRoute) {
-          setIsFirstAfterRoute(false);
-        }
+        // isFirstAfterRoute 已在 handleSend 开头处理，不再需要这里
       }
 
       // 自动生成 chat 标题
