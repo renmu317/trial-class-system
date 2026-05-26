@@ -505,23 +505,63 @@ export default function DebugChat({
   };
 
   const updateChatHistory = async (chatId, newMessages) => {
-    // 过滤掉 imagePreview 和其他不可序列化的 blob 字段
+    // 深度清理每条消息，确保可序列化
     const dbMessages = newMessages.map(m => {
-      // 只保留可序列化的字段
-      const { imagePreview, imageData, blob, file, ...rest } = m;
-      return rest;
+      // 1. 移除所有 blob/临时字段
+      const { imagePreview, imageData, blob, file, _temp, ...rest } = m;
+
+      // 2. 处理 content 字段
+      let safeContent = rest.content;
+
+      // 如果 content 是数组（vision 模式），提取文本部分
+      if (Array.isArray(safeContent)) {
+        const textParts = safeContent
+          .filter(part => part.type === 'text')
+          .map(part => part.text)
+          .join(' ');
+        safeContent = textParts || '[Image message]';
+      }
+
+      // 如果 content 不是字符串，转换为字符串
+      if (typeof safeContent !== 'string') {
+        try {
+          safeContent = JSON.stringify(safeContent);
+        } catch {
+          safeContent = String(safeContent || '');
+        }
+      }
+
+      // 3. 限制 content 长度（防止超大消息）
+      if (safeContent.length > 10000) {
+        safeContent = safeContent.slice(0, 10000) + '... [truncated]';
+      }
+
+      return {
+        role: rest.role || 'user',
+        content: safeContent,
+        timestamp: rest.timestamp || new Date().toISOString(),
+      };
     });
 
-    // 序列化测试：确保数据可以被 JSON.stringify
+    // 序列化测试
     try {
-      JSON.stringify(dbMessages);
+      const jsonStr = JSON.stringify(dbMessages);
+      // 检查总大小（Supabase jsonb 有限制）
+      if (jsonStr.length > 500000) {
+        console.warn('[DebugChat] Message history too large, truncating older messages');
+        // 只保留最近 20 条消息
+        const truncated = dbMessages.slice(-20);
+        await supabase.from('debug_sessions').update({
+          conversation_history: truncated,
+        }).eq('id', chatId);
+        return;
+      }
     } catch (e) {
       console.error('[DebugChat] JSON serialization failed:', e);
-      console.error('[DebugChat] Problematic messages:', dbMessages);
-      // 回退：只保留基本字段
-      const safeMessages = dbMessages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+      // 最后回退：只保留最近 10 条的基本信息
+      const safeMessages = dbMessages.slice(-10).map(m => ({
+        role: String(m.role || 'user'),
+        content: String(m.content || '').slice(0, 500),
         timestamp: m.timestamp,
       }));
       await supabase.from('debug_sessions').update({
@@ -535,7 +575,18 @@ export default function DebugChat({
     }).eq('id', chatId);
 
     if (error) {
-      console.error('[DebugChat] updateChatHistory error:', error);
+      console.error('[DebugChat] updateChatHistory error:', error.code, error.message);
+      // 如果还是失败，尝试最小化保存
+      if (error.code === 'PGRST204' || error.message?.includes('too large')) {
+        const minimal = dbMessages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.content.slice(0, 200),
+          timestamp: m.timestamp,
+        }));
+        await supabase.from('debug_sessions').update({
+          conversation_history: minimal,
+        }).eq('id', chatId);
+      }
     }
   };
 
