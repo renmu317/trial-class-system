@@ -392,6 +392,9 @@ export default function DebugChat({
   const orchestratorRoundCounter = useRef(new RoundCounter());
   const toolRoundCounter = useRef(new RoundCounter());
 
+  // V17 修复：用 ref 同步存储 currentMode，避免 setState 异步竞态
+  const currentModeRef = useRef('debug_orchestrator');
+
   // Reset Phase 1 状态
   const [resetStep, setResetStep] = useState(1);
   const [showUpgradeSelector, setShowUpgradeSelector] = useState(false);
@@ -922,18 +925,22 @@ export default function DebugChat({
         });
       } else {
         // V17 Phase B: 使用新的 callAgent 函数
-        const systemPrompt = await buildSystemPrompt(currentMode);
-        const currentRound = currentMode === 'debug_orchestrator'
+        // 使用 ref 获取 mode，避免 setState 异步竞态
+        const activeMode = currentModeRef.current;
+        const systemPrompt = await buildSystemPrompt(activeMode);
+        const currentRound = activeMode === 'debug_orchestrator'
           ? orchestratorRoundCounter.current.get()
           : toolRoundCounter.current.get();
 
+        console.log('[DebugChat] Calling agent with mode:', activeMode, 'round:', currentRound);
+
         response = await callAgent({
-          mode: currentMode,
+          mode: activeMode,
           userInput: textContent,
           currentRound,
           systemPrompt,
           conversationHistory: updatedMessages,
-          maxTokens: currentMode === 'debug_orchestrator' ? 500 : 800,
+          maxTokens: activeMode === 'debug_orchestrator' ? 500 : 800,
         });
       }
 
@@ -942,8 +949,11 @@ export default function DebugChat({
         console.log('[DebugChat] Model was skipped:', response.reason);
       }
 
+      // 使用 ref 获取当前 mode（避免 setState 异步竞态）
+      const modeForProcessing = currentModeRef.current;
+
       // 更新 Q 状态（Orchestrator 模式下追踪 Q1-Q4）
-      if (currentMode === 'debug_orchestrator' && response.q_asked) {
+      if (modeForProcessing === 'debug_orchestrator' && response.q_asked) {
         updateQState(response.q_asked, textContent);
       }
 
@@ -961,7 +971,7 @@ export default function DebugChat({
       }
 
       // 处理 Reset Phase 1 的步骤切换
-      if (currentMode === 'debug_reset_phase1') {
+      if (modeForProcessing === 'debug_reset_phase1') {
         if (response.show_upgrade_selector) {
           setShowUpgradeSelector(true);
           setResetStep(2);
@@ -980,8 +990,8 @@ export default function DebugChat({
         const fixText = response.student_fix || response.final_fix_request || response.final_new_prompt || textContent;
         if (fixText) {
           payload = {
-            type: currentMode === 'debug_prompt' ? 'prompt_fix' :
-                  currentMode === 'debug_code' ? 'code_fix' : 'reset',
+            type: modeForProcessing === 'debug_prompt' ? 'prompt_fix' :
+                  modeForProcessing === 'debug_code' ? 'code_fix' : 'reset',
             fixText,
           };
           console.log('[DebugChat] Execution payload:', payload);
@@ -1002,7 +1012,7 @@ export default function DebugChat({
       await updateChatHistory(activeChatId, finalMessages);
 
       // V17 Phase B: 更新 round（使用 RoundCounter）
-      if (currentMode === 'debug_orchestrator') {
+      if (modeForProcessing === 'debug_orchestrator') {
         if (response.continue !== false) {
           orchestratorRoundCounter.current.increment();
           console.log('[DebugChat] Orchestrator round incremented to:', orchestratorRoundCounter.current.get());
@@ -1066,14 +1076,15 @@ export default function DebugChat({
     }
 
     // 更新状态
-    setCurrentMode(newMode);
+    currentModeRef.current = newMode;  // 同步更新 ref（避免竞态）
+    setCurrentMode(newMode);           // 异步更新 state（用于 UI 渲染）
     setBugSummary(summary || '');
     setIsFirstAfterRoute(true);
     setAttemptCount(0);
 
     // V17 Phase B: 重置 Tool round counter
     toolRoundCounter.current.reset();
-    console.log('[DebugChat] handleRoute: Tool round reset to 1, isFirstAfterRoute=true');
+    console.log('[DebugChat] handleRoute: mode=', newMode, ', Tool round reset to 1, isFirstAfterRoute=true');
 
     // 更新 DB 记录
     await supabase.from('debug_sessions').update({
