@@ -419,50 +419,52 @@ async function handleUpgradeStarted(upgradeId, difficulty) {
 }
 
 /**
- * Gate 2 触发：学生返回 Prompt Tab
+ * Gate 2 重设计：静默标记
+ *
+ * 学生返回 Prompt Tab 时，不再弹出 Agent 对话框。
+ * 直接把所有 pending 的 Upgrade 标记为 appeared=true（推断值）。
+ *
+ * 真正的失败记录由 Debug Agent 完成：
+ * - 学生去 Debug → Debug Agent 记录 appeared=false
+ * - 学生不去 Debug → 推断游戏正常，标记 appeared=true
  */
 async function handlePromptTabRevisited() {
-  // 查询1：完整 Gate 1，等待验证（gate1_completed=true, upgrade_appeared=null）
-  const { data: pendingVerify } = await supabase
+  if (!_studentId || !_sessionId) return;
+
+  // 静默标记所有 pending 的 Upgrade 为 appeared=true
+  await markPendingUpgradesAsAppeared(_studentId, _sessionId);
+}
+
+/**
+ * 静默标记 pending 的 Upgrade 为 appeared=true
+ *
+ * 逻辑：学生返回 Prompt Tab 但没去 Debug，推断游戏正常运行
+ */
+async function markPendingUpgradesAsAppeared(studentId, sessionId) {
+  // 找到所有 Gate 1 完成但 upgrade_appeared 还是 null 的记录
+  const { data: pendingRecords } = await supabase
     .from('agent_sessions')
-    .select('*')
-    .eq('student_id', _studentId)
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('session_id', sessionId)
     .eq('gate1_completed', true)
     .is('upgrade_appeared', null);
 
-  // 查询2：未完成的 Gate 1（最近一条）
-  const { data: incomplete } = await supabase
+  if (!pendingRecords || pendingRecords.length === 0) return;
+
+  // 批量标记为 true（推断：学生没去 Debug 说明游戏正常）
+  const ids = pendingRecords.map(r => r.id);
+  await supabase
     .from('agent_sessions')
-    .select('*')
-    .eq('student_id', _studentId)
-    .eq('gate1_completed', false)
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .update({
+      upgrade_appeared: true,
+      gate2_failure_type: null,
+      // 标记这是推断值，不是学生确认的
+      gate2_inferred: true,
+    })
+    .in('id', ids);
 
-  // 无待处理任务则不触发
-  if ((!pendingVerify || pendingVerify.length === 0) &&
-      (!incomplete || incomplete.length === 0)) {
-    return;
-  }
-
-  // 使用 Student Context 获取时间和模式
-  const context = await buildStudentContext(_studentId, _sessionId, getCurrentPrompt());
-  const { timeRemaining, gate2Mode } = context;
-
-  // 合并 Agenda：verify 在前，resume 在后
-  const agenda = [
-    ...(pendingVerify || []).map(s => ({ type: 'verify', ...s })),
-    ...(incomplete || []).map(s => ({ type: 'resume', ...s })),
-  ];
-
-  // 通知 App.jsx 打开 AgentPanel
-  _onOpenPanel({
-    mode: 'gate2',
-    agenda,
-    gate2Mode,
-    timeRemaining,
-    studentContext: context, // 传递完整 context
-  });
+  console.log(`[AgentBridge] Marked ${ids.length} upgrades as appeared (inferred)`);
 }
 
 /**

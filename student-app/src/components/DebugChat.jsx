@@ -384,6 +384,7 @@ export default function DebugChat({
   const [isLoading, setIsLoading] = useState(false);
   const [currentMode, setCurrentMode] = useState('debug_orchestrator');
   const [bugSummary, setBugSummary] = useState('');
+  const [relatedUpgradeId, setRelatedUpgradeId] = useState(null);  // Gate 2 重设计：关联的 Upgrade ID
   const [isFirstAfterRoute, setIsFirstAfterRoute] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);
   const [executionPayload, setExecutionPayload] = useState(null);
@@ -473,7 +474,7 @@ export default function DebugChat({
   const loadChatMessages = async (chatId) => {
     const { data } = await supabase
       .from('debug_sessions')
-      .select('conversation_history, current_mode, resolved, bug_description')
+      .select('conversation_history, current_mode, resolved, bug_description, related_upgrade_id')
       .eq('id', chatId)
       .single();
 
@@ -481,6 +482,7 @@ export default function DebugChat({
       setMessages(data.conversation_history || []);
       setCurrentMode(data.current_mode || 'debug_orchestrator');
       setBugSummary(data.bug_description || '');
+      setRelatedUpgradeId(data.related_upgrade_id || null);  // Gate 2 重设计
       setExecutionPayload(null);
       setShowUpgradeSelector(false);
 
@@ -1079,6 +1081,7 @@ export default function DebugChat({
     currentModeRef.current = newMode;  // 同步更新 ref（避免竞态）
     setCurrentMode(newMode);           // 异步更新 state（用于 UI 渲染）
     setBugSummary(summary || '');
+    setRelatedUpgradeId(relatedUpgrade || null);  // Gate 2 重设计：保存关联的 Upgrade ID
     setIsFirstAfterRoute(true);
     setAttemptCount(0);
 
@@ -1107,6 +1110,24 @@ export default function DebugChat({
         await writeDebugComplete(studentId, sessionId, currentMode.replace('debug_', ''), executionPayload.fixText, false, lessonType);
       } catch (e) {
         console.log('[DebugChat] Timeline write skipped');
+      }
+    }
+
+    // Gate 2 重设计：如果有关联的 Upgrade，标记 appeared=false（真实值，不是推断）
+    if (relatedUpgradeId) {
+      try {
+        await supabase
+          .from('agent_sessions')
+          .update({
+            upgrade_appeared: false,           // Debug 说明没有正常出现
+            gate2_failure_type: currentMode === 'debug_prompt' ? 'no_prompt' : 'prompt_ignored',
+            gate2_inferred: false,             // 这是真实值，不是推断
+          })
+          .eq('student_id', studentId)
+          .eq('target_upgrade_id', relatedUpgradeId);
+        console.log(`[DebugChat] Marked upgrade ${relatedUpgradeId} as appeared=false`);
+      } catch (e) {
+        console.log('[DebugChat] Failed to update agent_sessions:', e);
       }
     }
 
