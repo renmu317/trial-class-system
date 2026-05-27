@@ -1,10 +1,12 @@
-// Phase 1 原版 + Phase 2 session/event 管理 + V17 Agent + Multi-lesson support
+// Phase 1 原版 + Phase 2 session/event 管理 + V17 Agent + Multi-lesson support + i18n
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { reportEvent, startEventFlush } from './lib/events';
 import { LESSON, TABS } from './lib/lesson';
 import { agentBridge } from './lib/AgentBridge';
-import { LESSONS, hasRuleDesign, hasDebugLog } from './lib/lessonConfig';
+import { LESSONS, getLessonConfig, hasRuleDesign, hasDebugLog } from './lib/lessonConfig';
+import { LanguageProvider, useLanguage, LanguageToggle } from './lib/LanguageContext';
+import { useT } from './i18n';
 
 import NameInput from './components/NameInput';
 import CodeInput from './components/CodeInput';
@@ -40,11 +42,31 @@ function SessionEndedBanner() {
   );
 }
 
+// Main App wrapper with LanguageProvider
 export default function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
+  );
+}
+
+// App content with language support
+function AppContent() {
+  const { language } = useLanguage();
+  const t = useT();
+
   // Multi-lesson: Lesson config from session's lesson_type (not URL)
-  const [lessonConfig, setLessonConfig] = useState(() => LESSONS['lesson1']); // 默认 lesson1
+  // Now also uses language to get the right lesson config
+  const [lessonType, setLessonType] = useState('lesson1');
+  const [lessonConfig, setLessonConfig] = useState(() => getLessonConfig('lesson1', language));
   const currentLesson = lessonConfig?.lesson || LESSON;
   const currentTabs = lessonConfig?.tabs || TABS;
+
+  // Update lesson config when language changes
+  useEffect(() => {
+    setLessonConfig(getLessonConfig(lessonType, language));
+  }, [language, lessonType]);
 
   // Phase 2: Session & student 状态
   const [sessionId, setSessionId] = useState(null);
@@ -123,9 +145,8 @@ export default function App() {
 
       // 根据 session 的 lesson_type 自动加载对应课程
       const lessonKey = session.lesson_type || 'lesson1';
-      const config = LESSONS[lessonKey] || LESSONS['lesson1'];
-      setLessonConfig(config);
-      console.log('Session loaded with lesson:', lessonKey, config?.lesson?.title);
+      setLessonType(lessonKey);
+      console.log('Session loaded with lesson:', lessonKey);
 
       setSessionId(session.id);
       setSessionName(session.name);
@@ -396,9 +417,8 @@ export default function App() {
 
     // 根据 session 的 lesson_type 自动加载对应课程
     const lessonKey = session.lesson_type || 'lesson1';
-    const config = LESSONS[lessonKey] || LESSONS['lesson1'];
-    setLessonConfig(config);
-    console.log('Loaded lesson:', lessonKey, config?.lesson?.title);
+    setLessonType(lessonKey);
+    console.log('Loaded lesson:', lessonKey);
 
     // 找到 session，更新状态
     setSessionId(session.id);
@@ -593,6 +613,8 @@ export default function App() {
             isCustom={isCustomName}
             onSave={handleGameNameSave}
           />
+          <div className="flex-1" />
+          <LanguageToggle />
         </div>
       </header>
 

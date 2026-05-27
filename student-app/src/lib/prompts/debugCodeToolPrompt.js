@@ -15,7 +15,19 @@
  * - fix_quality: precise/specific/vague
  *
  * 2026-05-26: V17 Phase B 重构
+ * 2026-05-27: 添加多语言支持
  */
+
+/**
+ * 获取语言指令
+ * @param {string} language - 'en' or 'zh'
+ * @returns {string}
+ */
+function getLanguageInstruction(language) {
+  return language === 'zh'
+    ? '用中文回复学生。'
+    : 'Reply to student in English.';
+}
 
 /**
  * 构建 Debug Code Tool System Prompt
@@ -26,10 +38,11 @@
  * @param {number} maxRounds - 最大轮数
  * @param {Object} [options] - 额外选项
  * @param {number} [options.attemptCount=0] - 尝试次数
+ * @param {string} [options.language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
 export function buildCodeToolPrompt(contextString, bugSummary, currentRound, maxRounds, options = {}) {
-  const { attemptCount = 0 } = options;
+  const { attemptCount = 0, language = 'en' } = options;
   const isFinalRound = currentRound >= maxRounds;
 
   // 脚手架模式
@@ -39,7 +52,10 @@ export function buildCodeToolPrompt(contextString, bugSummary, currentRound, max
 After they fill it, pass unconditionally.`
     : '';
 
+  const languageInstruction = getLanguageInstruction(language);
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 Bug: "${bugSummary}"
 Round: ${currentRound} of ${maxRounds}
@@ -70,15 +86,19 @@ ${contextString}`;
  * @param {number} step - 当前步骤 (1, 2, 3)
  * @param {Array} selectedUpgrades - 学生选择保留的功能
  * @param {number} [attemptCount=0]
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildResetToolPrompt(contextString, bugSummary, step, selectedUpgrades = [], attemptCount = 0) {
+export function buildResetToolPrompt(contextString, bugSummary, step, selectedUpgrades = [], attemptCount = 0, language = 'en') {
   const scaffoldHint = attemptCount >= 2 && step === 3
     ? `SCAFFOLD MODE: Student tried ${attemptCount} times. Let them continue with what they wrote.
 Give gentle guidance on what's missing, then unconditionally pass.`
     : '';
 
+  const languageInstruction = getLanguageInstruction(language);
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 Bug: "${bugSummary}"
 Step: ${step}

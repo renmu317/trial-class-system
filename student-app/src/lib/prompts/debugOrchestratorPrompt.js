@@ -13,7 +13,19 @@
  * - Q 状态追踪
  *
  * 2026-05-26: V17 Phase B 重构
+ * 2026-05-27: 添加多语言支持
  */
+
+/**
+ * 获取语言指令
+ * @param {string} language - 'en' or 'zh'
+ * @returns {string}
+ */
+function getLanguageInstruction(language) {
+  return language === 'zh'
+    ? '用中文回复学生。'
+    : 'Reply to student in English.';
+}
 
 /**
  * 构建 Debug Orchestrator System Prompt
@@ -21,9 +33,10 @@
  * @param {string} contextString - 格式化后的上下文
  * @param {number} currentRound - 当前轮数
  * @param {Object} [qState] - Q 状态追踪
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildOrchestratorPrompt(contextString, currentRound, qState = null) {
+export function buildOrchestratorPrompt(contextString, currentRound, qState = null, language = 'en') {
   const maxRounds = 5;
   const isFinalRound = currentRound >= maxRounds;
 
@@ -56,7 +69,10 @@ export function buildOrchestratorPrompt(contextString, currentRound, qState = nu
     }
   }
 
+  const languageInstruction = getLanguageInstruction(language);
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 You are classifying a bug. Follow this decision tree:
 ${qStateSection}
@@ -89,10 +105,11 @@ ${contextString}`;
  * @param {string} contextString
  * @param {number} currentRound
  * @param {Object} debugPreKnown - Gate 2 失败上下文
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildOrchestratorWithPreKnownPrompt(contextString, currentRound, debugPreKnown) {
-  const basePrompt = buildOrchestratorPrompt(contextString, currentRound);
+export function buildOrchestratorWithPreKnownPrompt(contextString, currentRound, debugPreKnown, language = 'en') {
+  const basePrompt = buildOrchestratorPrompt(contextString, currentRound, null, language);
 
   const preKnownSection = debugPreKnown
     ? `

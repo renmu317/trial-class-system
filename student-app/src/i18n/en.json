@@ -1,0 +1,118 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "start": "Start",
+    "close": "Close",
+    "send": "Send",
+    "new": "New",
+    "done": "Done"
+  },
+  "nameInput": {
+    "welcome": "Welcome!",
+    "enterName": "Enter your name to join",
+    "placeholder": "Your name...",
+    "joinClass": "Join Class"
+  },
+  "codeInput": {
+    "title": "Join Class",
+    "enterCode": "Enter the 4-digit code from your teacher",
+    "placeholder": "Enter code...",
+    "submit": "Join"
+  },
+  "error": {
+    "classNotFound": "Class Not Found",
+    "invalidCode": "Invalid code. Please check and try again.",
+    "invalidLink": "This class link is invalid.",
+    "classEnded": "This class has ended."
+  },
+  "session": {
+    "endedBanner": "Class ended. You can still play, but progress won't be saved."
+  },
+  "returning": {
+    "welcomeBack": "Welcome back, {name}!",
+    "foundGame": "We found your game from earlier. Is this you?",
+    "yesItsMe": "Yes, that's me",
+    "noDifferent": "No, different person"
+  },
+  "design": {
+    "stepOf": "Step {current} of {total}",
+    "buildMyGame": "Build My Game",
+    "ownIdea": "Your idea...",
+    "finishFirst": "Finish building first!",
+    "goToBuild": "Go to Build"
+  },
+  "rules": {
+    "title": "Game Rules",
+    "description": "Set the rules for your maze",
+    "nextPrompt": "Next: Generate Prompt"
+  },
+  "prompt": {
+    "ready": "Your prompt is ready!",
+    "copyThen": "Copy it, then paste into Claude AI",
+    "yourDesign": "Your Design",
+    "gameRules": "Game Rules",
+    "openClaude": "Open Claude",
+    "startOver": "Start Over",
+    "copyPrompt": "Copy Prompt"
+  },
+  "upgrade": {
+    "title": "Level Up Your Game",
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard",
+    "easyDesc": "Quick changes - pick one and copy",
+    "mediumDesc": "Bigger changes - read the hint, then copy",
+    "hardDesc": "Designer challenges - YOU write the prompt",
+    "myOwnIdea": "My Own Idea",
+    "writeYourIdea": "What do you want to add?",
+    "startConversation": "Start",
+    "completed": "Completed",
+    "fillNumber": "Fill in the number",
+    "think": "Think about this:",
+    "hint": "Hint:",
+    "yourDescription": "Your description:",
+    "descriptionPlaceholder": "Describe what you want in detail...",
+    "basedOnConversation": "Based on your conversation - feel free to edit"
+  },
+  "help": {
+    "title": "Need Help?",
+    "pickProblem": "Pick what's happening"
+  },
+  "debug": {
+    "title": "Debug Your Game",
+    "newChat": "New Chat",
+    "describeIssue": "Describe what's happening...",
+    "sendMessage": "Send",
+    "goGenerate": "Go to Generate",
+    "copyFix": "Copy Fix",
+    "resolved": "Resolved",
+    "noChats": "No debug sessions yet. Click 'New Chat' to start.",
+    "whatHappened": "What happened in your game?"
+  },
+  "agent": {
+    "title": "Let's design this upgrade!",
+    "thinking": "Thinking...",
+    "continue": "Continue",
+    "typeResponse": "Type your response...",
+    "selectOption": "Select an option",
+    "gate2Title": "Did it work?",
+    "verifyUpgrade": "Let's check if the upgrade appeared in your game"
+  },
+  "tabs": {
+    "build": "Build",
+    "rules": "Rules",
+    "prompt": "Prompt",
+    "debug": "Debug",
+    "help": "Help",
+    "upgrade": "Upgrade"
+  },
+  "gameName": {
+    "clickToEdit": "Click to edit game name",
+    "myGame": "My Game"
+  }
+}

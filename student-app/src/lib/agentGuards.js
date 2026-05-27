@@ -82,15 +82,34 @@ export const checkObviouslyInvalid = (text) => {
     return { invalid: true, reason: 'empty' };
   }
 
-  // 确认性单词
+  // 确认性单词（英文）
   if (CONFIRMATION_WORDS.test(trimmed)) {
     return { invalid: true, reason: 'confirmation' };
   }
 
-  // 太短（少于 3 个词）
-  const wordCount = trimmed.split(/\s+/).length;
-  if (wordCount < MIN_WORD_COUNT) {
-    return { invalid: true, reason: 'too_short' };
+  // 中文确认词
+  const CHINESE_CONFIRMATION = /^(好|好的|是|是的|对|对的|行|嗯|可以|没问题|知道了|明白|ok)$/i;
+  if (CHINESE_CONFIRMATION.test(trimmed)) {
+    return { invalid: true, reason: 'confirmation' };
+  }
+
+  // 太短检测：
+  // - 英文：少于 3 个词
+  // - 中文：少于 5 个字符（因为中文没有空格分隔）
+  const hasChineseChars = /[\u4e00-\u9fa5]/.test(trimmed);
+
+  if (hasChineseChars) {
+    // 中文：按字符长度判断（去掉标点后）
+    const chineseCharsOnly = trimmed.replace(/[^\u4e00-\u9fa5]/g, '');
+    if (chineseCharsOnly.length < 5) {
+      return { invalid: true, reason: 'too_short' };
+    }
+  } else {
+    // 英文：按单词数判断
+    const wordCount = trimmed.split(/\s+/).length;
+    if (wordCount < MIN_WORD_COUNT) {
+      return { invalid: true, reason: 'too_short' };
+    }
   }
 
   return { invalid: false };
@@ -99,11 +118,30 @@ export const checkObviouslyInvalid = (text) => {
 /**
  * 无效输入的标准回复模板
  * 用于直接追问，不消耗 API
+ * 支持多语言
  */
 export const INVALID_RESPONSE_TEMPLATES = {
-  empty: "Please describe what's happening in your game.",
-  confirmation: 'Can you describe it in a full sentence? For example: "Fix the [feature]: it should [behavior]"',
-  too_short: 'Can you say more? Describe what the feature should do.',
+  en: {
+    empty: "Please describe what's happening in your game.",
+    confirmation: 'Can you describe it in a full sentence? For example: "Fix the [feature]: it should [behavior]"',
+    too_short: 'Can you say more? Describe what the feature should do.',
+  },
+  zh: {
+    empty: "请描述你的游戏中发生了什么。",
+    confirmation: '能用完整的句子描述吗？例如："修复[功能]：它应该[行为]"',
+    too_short: '能说更多吗？描述一下这个功能应该做什么。',
+  }
+};
+
+/**
+ * 获取无效输入的回复（支持多语言）
+ * @param {string} reason - 'empty' | 'confirmation' | 'too_short'
+ * @param {string} language - 'en' | 'zh'
+ * @returns {string}
+ */
+export const getInvalidResponse = (reason, language = 'en') => {
+  const templates = INVALID_RESPONSE_TEMPLATES[language] || INVALID_RESPONSE_TEMPLATES.en;
+  return templates[reason] || templates.empty;
 };
 
 // ─────────────────────────────────────────────────────────
@@ -166,6 +204,7 @@ export const getMaxRounds = (mode) => {
  * @param {string} text - 用户输入
  * @param {string} mode - 当前模式
  * @param {number} currentRound - 当前轮数
+ * @param {string} language - 语言 ('en' | 'zh')
  * @returns {{
  *   shouldCallModel: boolean,
  *   directResponse?: string,
@@ -174,13 +213,13 @@ export const getMaxRounds = (mode) => {
  *   maxRounds?: number
  * }}
  */
-export const preCheckInput = (text, mode, currentRound) => {
+export const preCheckInput = (text, mode, currentRound, language = 'en') => {
   // 检查明显无效输入
   const invalidCheck = checkObviouslyInvalid(text);
   if (invalidCheck.invalid) {
     return {
       shouldCallModel: false,
-      directResponse: INVALID_RESPONSE_TEMPLATES[invalidCheck.reason],
+      directResponse: getInvalidResponse(invalidCheck.reason, language),
       reason: invalidCheck.reason,
     };
   }

@@ -3,6 +3,53 @@ import { useState, useEffect } from 'react';
 import { Copy, Check, ChevronRight, Play } from 'lucide-react';
 import { LESSON, LEVEL_CONFIG } from '../lib/lesson';
 import Button from './Button';
+import { useLanguage } from '../lib/LanguageContext';
+
+// Upgrade 组件翻译
+const UPGRADE_TEXT = {
+  en: {
+    upgradeYourGame: 'Upgrade Your Game',
+    start: 'Start',
+    copy: 'Copy',
+    copied: 'Copied!',
+    copyMyIdea: 'Copy My Idea',
+    copyMyPrompt: 'Copy My Prompt',
+    suggested: 'Suggested',
+    pickOne: 'Pick ONE. Copy and paste into the same chat.',
+    hardPlaceholder: 'Start from your idea above. Describe it fully so Claude can build it exactly the way you imagined...',
+    hardPlaceholderNoQuote: 'Describe your idea in detail. What does it do? When does it trigger? What happens?',
+    editHint: '✏️ Based on your conversation — feel free to edit',
+    customFeatureReady: '✨ Your custom feature is ready! Fill in the numbers below.',
+    basedOn: 'Based on',
+    keyIdea: '💬 Key idea from conversation:',
+    charactersLeft: 'characters left',
+    loadingCustom: 'Loading your custom feature...',
+    typeYourIdea: 'Type your upgrade idea...',
+    descriptionWillAppear: 'Your description will appear here after the conversation...',
+  },
+  zh: {
+    upgradeYourGame: '升级你的游戏',
+    start: '开始',
+    copy: '复制',
+    copied: '已复制！',
+    copyMyIdea: '复制我的想法',
+    copyMyPrompt: '复制我的描述',
+    suggested: '建议',
+    pickOne: '选择一个，复制并粘贴到同一个对话中。',
+    hardPlaceholder: '从你上面的想法开始。完整描述它，让 Claude 能够准确地按照你的想象来构建...',
+    hardPlaceholderNoQuote: '详细描述你的想法。它做什么？什么时候触发？会发生什么？',
+    editHint: '✏️ 基于你的对话生成 — 可以自由编辑',
+    customFeatureReady: '✨ 你的自定义功能已准备好！请填写下面的数字。',
+    basedOn: '基于',
+    keyIdea: '💬 对话中的关键想法：',
+    charactersLeft: '个字符剩余',
+    loadingCustom: '正在加载你的自定义功能...',
+    typeYourIdea: '输入你的升级想法...',
+    descriptionWillAppear: '你的描述将在对话后显示在这里...',
+  }
+};
+
+const getUpgradeText = (language) => UPGRADE_TEXT[language] || UPGRADE_TEXT.en;
 
 // Helper to get lesson from context or default
 const getLessonAndConfig = (lessonConfig) => {
@@ -15,8 +62,9 @@ const getLessonAndConfig = (lessonConfig) => {
 // 支持两种 buildPrompt 格式：
 // - Lesson 1: buildPrompt({ key: value }) 对象参数
 // - Lesson 2: buildPrompt(value) 数字参数
-function EasyFillCard({ up, copiedId, onCopy }) {
+function EasyFillCard({ up, copiedId, onCopy, language = 'en' }) {
   const [value, setValue] = useState(up.fillParam.default);
+  const t = getUpgradeText(language);
   const { key, label, suffix, min, max, hint } = up.fillParam;
 
   const clamp = (v) => {
@@ -88,14 +136,15 @@ function EasyFillCard({ up, copiedId, onCopy }) {
         className="w-full"
         disabled={!finalPrompt}
       >
-        {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy</>)}
+        {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copy}</>)}
       </Button>
     </div>
   );
 }
 
 // Medium 卡：V17 Gate 1 追问意图，完成后显示参数输入 + hint + 推荐值
-function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendations }) {
+function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendations, language = 'en' }) {
+  const t = getUpgradeText(language);
   // 使用推荐值作为初始值（如果有的话）
   const initial = up.params.reduce((acc, p) => {
     const rec = recommendations?.[p.key];
@@ -135,7 +184,7 @@ function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendation
           size="sm"
           className="w-full"
         >
-          <Play className="w-4 h-4" /> Start
+          <Play className="w-4 h-4" /> {t.start}
         </Button>
       ) : (
         <>
@@ -162,7 +211,7 @@ function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendation
                   {/* Agent 推荐值显示 */}
                   {rec && (
                     <p className="text-xs text-blue-500 ml-1 mb-1">
-                      💡 Suggested: {rec.value} — {rec.reason}
+                      💡 {t.suggested}: {rec.value} — {rec.reason}
                     </p>
                   )}
                   {/* hint 显示在输入框下方 */}
@@ -181,7 +230,7 @@ function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendation
             className="w-full"
             disabled={!allFilled}
           >
-            {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy</>)}
+            {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copy}</>)}
           </Button>
         </>
       )}
@@ -189,10 +238,11 @@ function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendation
   );
 }
 
-function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isCompleted, lesson, recommendations, bestQuote, draftPrompt, dynamicConfig }) {
+function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isCompleted, lesson, recommendations, bestQuote, draftPrompt, dynamicConfig, language = 'en' }) {
   const [hardText, setHardText] = useState("");
   const [ownText, setOwnText] = useState("");
   const [dynamicParamValues, setDynamicParamValues] = useState({});
+  const t = getUpgradeText(language);
 
   // Hard Upgrade：当 Gate 1 完成且有 draftPrompt 时，预填 textarea
   useEffect(() => {
@@ -222,7 +272,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             size="sm"
             className="w-full"
           >
-            <Play className="w-4 h-4" /> Start
+            <Play className="w-4 h-4" /> {t.start}
           </Button>
         </div>
       );
@@ -236,7 +286,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             <div className="text-2xl">{up.emoji}</div>
             <div className="font-bold text-slate-800">{up.title}</div>
           </div>
-          <p className="text-slate-400 text-sm">Loading your custom feature...</p>
+          <p className="text-slate-400 text-sm">{t.loadingCustom}</p>
         </div>
       );
     }
@@ -273,7 +323,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
         </div>
 
         <div className="text-xs text-blue-700 bg-blue-50 rounded-lg p-2.5 mb-3 leading-relaxed">
-          ✨ Your custom feature is ready! Fill in the numbers below.
+          {t.customFeatureReady}
         </div>
 
         {/* 动态生成的 params 输入区 */}
@@ -300,7 +350,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
               )}
               {p.intent && (
                 <p className="text-xs text-purple-500 ml-1 mt-1">
-                  💬 Based on: "{p.intent}"
+                  💬 {t.basedOn}: "{p.intent}"
                 </p>
               )}
             </div>
@@ -314,7 +364,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
           className="w-full"
           disabled={!allFilled}
         >
-          {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy</>)}
+          {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copy}</>)}
         </Button>
       </div>
     );
@@ -343,11 +393,11 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
           onChange={(e) => {
             if (e.target.value.length <= ownIdeaMaxLength) setOwnText(e.target.value);
           }}
-          placeholder="Type your upgrade idea..."
+          placeholder={t.typeYourIdea}
           className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none mb-2"
         />
         <div className={`text-xs mb-3 ${remaining < 10 ? "text-orange-500" : "text-slate-400"}`}>
-          {remaining} characters left
+          {remaining} {t.charactersLeft}
         </div>
         <Button
           onClick={() => {
@@ -361,7 +411,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
           className="w-full"
           disabled={!valid}
         >
-          {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy My Idea</>)}
+          {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copyMyIdea}</>)}
         </Button>
       </div>
     );
@@ -374,9 +424,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
     const wrapped = `Update my game with this idea: ${trimmed}. Make sure it works with the existing gameplay and the game stays fun and playable.`;
 
     // 动态 placeholder：有 bestQuote 时更具方向感
-    const placeholder = bestQuote
-      ? "Start from your idea above. Describe it fully so Claude can build it exactly the way you imagined..."
-      : "Describe your idea in detail. What does it do? When does it trigger? What happens?";
+    const placeholder = bestQuote ? t.hardPlaceholder : t.hardPlaceholderNoQuote;
 
     return (
       <div className="bg-white border-2 border-purple-300 rounded-2xl p-4 sm:col-span-2">
@@ -397,7 +445,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
               size="sm"
               className="w-full"
             >
-              <Play className="w-4 h-4" /> Start
+              <Play className="w-4 h-4" /> {t.start}
             </Button>
           </>
         ) : (
@@ -405,7 +453,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             {/* 区域1：bestQuote 展示（降低视觉重量，作为参考） */}
             {bestQuote && (
               <div className="bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
-                <p className="text-xs text-purple-400 mb-1">💬 Key idea from conversation:</p>
+                <p className="text-xs text-purple-400 mb-1">{t.keyIdea}</p>
                 <p className="text-xs text-purple-700 italic">"{bestQuote}"</p>
               </div>
             )}
@@ -414,7 +462,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             <textarea
               value={hardText}
               onChange={(e) => setHardText(e.target.value)}
-              placeholder="Your description will appear here after the conversation..."
+              placeholder={t.descriptionWillAppear}
               rows={5}
               className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-purple-500 focus:outline-none text-sm resize-none"
             />
@@ -422,7 +470,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             {/* 提示：可以修改（仅当内容与 draftPrompt 相同时显示） */}
             {hardText && hardText === draftPrompt && (
               <p className="text-xs text-slate-400">
-                ✏️ Based on your conversation — feel free to edit
+                {t.editHint}
               </p>
             )}
 
@@ -433,7 +481,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
               className="w-full"
               disabled={!valid}
             >
-              {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy My Prompt</>)}
+              {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copyMyPrompt}</>)}
             </Button>
           </div>
         )}
@@ -443,12 +491,12 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
 
   // V17: Medium Upgrade - 需要 Gate 1（追问意图）
   if (up.level === "medium") {
-    return <MediumCard up={up} copiedId={copiedId} onCopy={onCopy} onStart={onStart} isCompleted={isCompleted} recommendations={recommendations} />;
+    return <MediumCard up={up} copiedId={copiedId} onCopy={onCopy} onStart={onStart} isCompleted={isCompleted} recommendations={recommendations} language={language} />;
   }
 
   // V17 Lesson 2: Easy Upgrade 带 fillParam - 直接显示数字输入，无需 Gate 1
   if (up.level === "easy" && up.fillParam) {
-    return <EasyFillCard up={up} copiedId={copiedId} onCopy={onCopy} />;
+    return <EasyFillCard up={up} copiedId={copiedId} onCopy={onCopy} language={language} />;
   }
 
   // V17: Easy Upgrade（非 "My Own Idea"，无 fillParam）- Lesson 1 风格，需要 Gate 1
@@ -468,7 +516,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
           size="sm"
           className="w-full"
         >
-          <Play className="w-4 h-4" /> Start
+          <Play className="w-4 h-4" /> {t.start}
         </Button>
       ) : (
         <Button
@@ -477,7 +525,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
           size="sm"
           className="w-full"
         >
-          {copiedId === up.id ? (<><Check className="w-4 h-4" /> Copied!</>) : (<><Copy className="w-4 h-4" /> Copy</>)}
+          {copiedId === up.id ? (<><Check className="w-4 h-4" /> {t.copied}</>) : (<><Copy className="w-4 h-4" /> {t.copy}</>)}
         </Button>
       )}
     </div>
@@ -487,6 +535,8 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
 export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, onStartUpgrade, completedUpgrades = [], upgradeRecommendations = {}, upgradeQuotes = {}, upgradeDrafts = {}, dynamicUpgradeConfig = {}, lessonConfig }) {
   const [copiedId, setCopiedId] = useState(null);
   const [openLevels, setOpenLevels] = useState({ easy: true, medium: false, hard: false });
+  const { language } = useLanguage();
+  const t = getUpgradeText(language);
 
   // Use lessonConfig if provided, otherwise fallback to defaults
   const { lesson, levelConfig } = getLessonAndConfig(lessonConfig);
@@ -537,8 +587,8 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, o
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">🚀</div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-2">Upgrade Your Game</h2>
-        <p className="text-slate-600 text-sm sm:text-base">Pick ONE. Copy and paste into the same chat.</p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-2">{t.upgradeYourGame}</h2>
+        <p className="text-slate-600 text-sm sm:text-base">{t.pickOne}</p>
       </div>
 
       {levels.map((lvl) => {
@@ -583,6 +633,7 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, o
                     bestQuote={upgradeQuotes[up.id]}
                     draftPrompt={upgradeDrafts[up.id]}
                     dynamicConfig={dynamicUpgradeConfig[up.id]}
+                    language={language}
                   />
                 ))}
               </div>

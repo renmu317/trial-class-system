@@ -15,6 +15,7 @@ import { X, Send, MessageCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { LESSON, DIMENSION_LIBRARY } from '../lib/lesson';
 import { agentBridge } from '../lib/AgentBridge';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../lib/LanguageContext';
 
 // V17 Phase B: 新架构模块
 import { RoundCounter, preCheckInput, INVALID_RESPONSE_TEMPLATES } from '../lib/agentGuards';
@@ -87,6 +88,68 @@ async function callDeepSeek(messages, temperature = 0.7, retries = 2, maxTokens 
       throw error;
     }
   }
+}
+
+/**
+ * 获取语言指令（用于 System Prompt）
+ * @param {string} language - 'en' or 'zh'
+ * @returns {string}
+ */
+function getLanguageInstruction(language) {
+  return language === 'zh'
+    ? '用中文回复学生。所有 response 字段必须用中文。'
+    : 'Respond to student in English. All response fields must be in English.';
+}
+
+/**
+ * 获取 Agent UI 消息的翻译
+ * @param {string} language - 'en' or 'zh'
+ * @returns {Object}
+ */
+function getAgentMessages(language) {
+  const messages = {
+    en: {
+      gate1Welcome: (title) => `Hi! I see you picked "${title}" ✨\n\nTell me, how do you want this feature to work? Share your ideas!`,
+      gate2Welcome: (upgradeNames) => `Let's check if your upgrades worked! 🎮\n\nYou added: ${upgradeNames}\nDid they appear in your game?`,
+      debugOrchestratorWelcome: `Tell me, what's going wrong with your game?`,
+      debugPromptWelcome: (bugSummary) => bugSummary
+        ? `Got it — "${bugSummary}"\n\nTell me: What went wrong? What did you WANT to happen?`
+        : `Tell me: What went wrong? What did you WANT to happen?`,
+      debugCodeWelcome: (bugSummary) => bugSummary
+        ? `Got it — "${bugSummary}"\n\nWhat's going wrong? When does it happen?`
+        : `What's going wrong? When does it happen?`,
+      debugResetPhase1Welcome: `Sometimes starting fresh is the fastest way! 🔄\n\nWhat parts of your game worked well? We can keep those!`,
+      debugResetPhase2Welcome: `Welcome back! Is your new game running? 🎮`,
+      debugVerifyQuestion: (hasPendingVerification) => hasPendingVerification
+        ? `You clicked "Go Generate" — did you paste the fix into Claude?`
+        : `You sent the fix request — is the bug gone?`,
+      preCheckResponse: `You've shared great ideas! Let's move on to writing them out.`,
+      gate2FallbackQuestion: `Did the upgrade appear in your game? Please tell me yes or no.`,
+      placeholderDebug: `Describe what's happening...`,
+      placeholderIdeas: `Share your ideas...`,
+    },
+    zh: {
+      gate1Welcome: (title) => `你好！我看到你选择了「${title}」✨\n\n告诉我，你想让这个功能怎么运作？分享你的想法吧！`,
+      gate2Welcome: (upgradeNames) => `让我们检查一下你的升级是否生效了！🎮\n\n你添加了：${upgradeNames}\n它们出现在你的游戏中了吗？`,
+      debugOrchestratorWelcome: `告诉我，你的游戏出了什么问题？`,
+      debugPromptWelcome: (bugSummary) => bugSummary
+        ? `明白了——「${bugSummary}」\n\n告诉我：出了什么问题？你原本想要什么效果？`
+        : `告诉我：出了什么问题？你原本想要什么效果？`,
+      debugCodeWelcome: (bugSummary) => bugSummary
+        ? `明白了——「${bugSummary}」\n\n出了什么问题？什么时候发生的？`
+        : `出了什么问题？什么时候发生的？`,
+      debugResetPhase1Welcome: `有时候重新开始是最快的方法！🔄\n\n你的游戏哪些部分运行良好？我们可以保留那些！`,
+      debugResetPhase2Welcome: `欢迎回来！你的新游戏运行了吗？🎮`,
+      debugVerifyQuestion: (hasPendingVerification) => hasPendingVerification
+        ? `你点击了「去生成」——你把修复内容粘贴到 Claude 了吗？`
+        : `你发送了修复请求——bug 消失了吗？`,
+      preCheckResponse: `你分享了很棒的想法！让我们继续把它们写出来。`,
+      gate2FallbackQuestion: `升级功能出现在你的游戏中了吗？请告诉我是或否。`,
+      placeholderDebug: `描述发生了什么...`,
+      placeholderIdeas: `分享你的想法...`,
+    }
+  };
+  return messages[language] || messages.en;
 }
 
 /**
@@ -172,8 +235,10 @@ function buildScoringDimensions(upgradeLevel) {
 
 /**
  * 构建 Upgrade 上下文（根据 level 不同）
+ * @param {Object} upgrade - Upgrade 配置
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  */
-function buildUpgradeContext(upgrade) {
+function buildUpgradeContext(upgrade, language = 'en') {
   if (upgrade.level === 'easy') {
     return `
 ## Upgrade Type: EASY
@@ -205,15 +270,28 @@ Example: Instead of "How many hits?", ask "Do you want a quick fight or an epic 
   }
 
   if (upgrade.level === 'hard') {
-    return `
-## Upgrade Type: HARD
-- Title: ${upgrade.title}
-- What it does: ${upgrade.agent_context || ''}
-- Design hint shown to student: "${upgrade.hint || ''}"
-- Language dimensions to explore: ${(upgrade.language_dimensions || []).join(' | ')}
-- Student will write their own prompt — help them think precisely.
+    // 根据语言生成不同的 draft_prompt 规则
+    const draftPromptRules = language === 'zh'
+      ? `## HARD UPGRADE: draft_prompt 生成（重要）
+当你决定放行时（continue: false），你必须生成 draft_prompt 字段。
 
-## HARD UPGRADE: draft_prompt Generation (IMPORTANT)
+draft_prompt 规则：
+1. 整合整个对话中所有具体信息
+2. 使用第三人称描述（"添加一个..."、"当玩家..."）
+3. 包含：位置、触发方式、视觉效果、结果（如果对话中提到了）
+4. 3-5句话，Claude 看了能直接执行
+5. 不要添加学生没有提到的内容
+6. 使用简单的中文，避免技术术语
+7. **必须用中文生成 draft_prompt**
+
+对话片段示例：
+- "碰到金色的墙就能发现隐藏通道"
+- "在起点附近的左边"
+- "消失3秒"
+
+draft_prompt 示例：
+"在迷宫起点附近的左侧添加一个隐藏通道。当玩家触碰金色墙壁时，墙壁消失3秒，露出一条秘密捷径。隐藏的墙壁应该用金色来暗示秘密。"`
+      : `## HARD UPGRADE: draft_prompt Generation (IMPORTANT)
 When you decide to release (continue: false), you MUST generate a draft_prompt field.
 
 draft_prompt Rules:
@@ -231,6 +309,16 @@ Example conversation fragments:
 
 Example draft_prompt:
 "Add a hidden passage on the left side of the maze near the starting point. When the player touches the golden-colored wall section, it disappears for 3 seconds to reveal a secret shortcut. The hidden wall should look slightly different from normal walls with a golden color to hint at the secret."`;
+
+    return `
+## Upgrade Type: HARD
+- Title: ${upgrade.title}
+- What it does: ${upgrade.agent_context || ''}
+- Design hint shown to student: "${upgrade.hint || ''}"
+- Language dimensions to explore: ${(upgrade.language_dimensions || []).join(' | ')}
+- Student will write their own prompt — help them think precisely.
+
+${draftPromptRules}`;
   }
 
   return '';
@@ -238,23 +326,29 @@ Example draft_prompt:
 
 /**
  * 构建 Gate 1 System Prompt
+ * @param {Object} upgrade - Upgrade 配置
+ * @param {Object} lesson - 当前课程配置
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  */
-function buildGate1SystemPrompt(upgrade, lesson) {
-  const upgradeContext = buildUpgradeContext(upgrade);
+function buildGate1SystemPrompt(upgrade, lesson, language = 'en') {
+  const upgradeContext = buildUpgradeContext(upgrade, language);
   const scoringDimensions = buildScoringDimensions(upgrade.level);
 
   // Medium Own Idea: 动态生成 params
   if (upgrade.dynamicParams) {
-    return buildMediumOwnIdeaSystemPrompt(lesson);
+    return buildMediumOwnIdeaSystemPrompt(lesson, language);
   }
 
   // Medium Upgrade 使用 param_coverage 放行逻辑
   if (upgrade.level === 'medium') {
-    return buildMediumSystemPrompt(upgrade, lesson, upgradeContext, scoringDimensions);
+    return buildMediumSystemPrompt(upgrade, lesson, upgradeContext, scoringDimensions, language);
   }
+
+  const languageInstruction = getLanguageInstruction(language);
 
   // Easy / Hard 使用原有分数放行逻辑
   return `You are a cognitive coach helping kids design games. Your job is to ask questions, not give answers.
+${languageInstruction}
 
 ## Game Context
 - Game type: ${lesson.title}
@@ -281,7 +375,7 @@ ${scoringDimensions}
   "continue": true/false,
   "early_release": true/false,
   "mode": "open" | "fill" | "choice",
-  "response": "What you say to the student IN ENGLISH",
+  "response": "What you say to the student",
   "fill_template": "Optional: fill-in-the-blank template",
   "choices": ["Optional: Choice A", "Choice B", "Choice C"],
   "best_quote": "Optional: the student's best phrase",
@@ -303,7 +397,6 @@ Round 3: always continue: false
 ## Important Rules
 - After choice questions, MUST follow up to turn the choice into a description
 - Keep a friendly, encouraging tone
-- ALWAYS respond in English
 - OUTPUT ONLY THE JSON OBJECT, NO OTHER TEXT BEFORE OR AFTER
 - Do not wrap in markdown code blocks, just raw JSON`;
 }
@@ -311,7 +404,7 @@ Round 3: always continue: false
 /**
  * 构建 Medium Upgrade 专用 System Prompt（param_coverage 放行逻辑）
  */
-function buildMediumSystemPrompt(upgrade, lesson, upgradeContext, scoringDimensions) {
+function buildMediumSystemPrompt(upgrade, lesson, upgradeContext, scoringDimensions, language = 'en') {
   // 提取 params 的 key 列表
   const paramKeys = (upgrade.params || []).map(p => p.key);
   const paramCoverageExample = paramKeys.reduce((acc, key) => {
@@ -352,7 +445,7 @@ ${paramKeys.map(key => `- ${key}: Has the student expressed their design prefere
   "continue": true/false,
   "early_release": true/false,
   "mode": "open" | "fill" | "choice",
-  "response": "What you say to the student IN ENGLISH",
+  "response": "What you say to the student",
   "fill_template": "Optional: fill-in-the-blank template",
   "choices": ["Optional: Choice A", "Choice B", "Choice C"],
   "best_quote": "Optional: the student's best phrase about their design intent"
@@ -378,14 +471,14 @@ Student: "The fight should feel epic, not just one hit and done"
 - Ask about feelings and design goals ("Should it be quick or epic?" ✓)
 - Reference their exact words when following up
 - Keep a friendly, encouraging tone
-- ALWAYS respond in English
+- ${getLanguageInstruction(language)}
 - OUTPUT ONLY THE JSON OBJECT, NO OTHER TEXT`;
 }
 
 /**
  * Medium Own Idea System Prompt - 动态生成 params
  */
-function buildMediumOwnIdeaSystemPrompt(lesson) {
+function buildMediumOwnIdeaSystemPrompt(lesson, language = 'en') {
   return `IMPORTANT: Your response must be a single JSON object. Start with { end with }.
 No text before or after. No markdown. No code blocks.
 
@@ -476,7 +569,7 @@ When all_covered is true (feature fully defined):
 - Maximum 4 params total
 - After Round 3, always set continue: false
 - Keep responses friendly and short
-- ALWAYS respond in English`;
+- ${getLanguageInstruction(language)}`;
 }
 
 /**
@@ -530,7 +623,7 @@ Return ONLY a JSON object, no explanation:
 /**
  * 构建 Gate 2 System Prompt
  */
-function buildGate2SystemPrompt(agenda, gate2Mode) {
+function buildGate2SystemPrompt(agenda, gate2Mode, language = 'en') {
   // 构建 upgrade 列表，包含难度和 bestQuote
   const upgradesList = agenda.map((item, i) => {
     const difficulty = item.upgrade_difficulty || 'easy';
@@ -603,7 +696,7 @@ ${hardVerifyLogic}
 
 ## Response Format (MUST return JSON)
 {
-  "response": "What you say to the student IN ENGLISH",
+  "response": "What you say to the student",
   "next_action": "continue" | "ask_specific" | "choice" | "done",
   "verified_upgrades": [
     {
@@ -677,7 +770,7 @@ This becomes Debug Orchestrator Q1. From here, run the full Debug classification
 - When student says upgrade didn't appear/match → IMMEDIATELY switch to Debug
 - Keep a friendly, encouraging tone
 - Help students see the connection between precise language and results
-- ALWAYS respond in English
+- ${getLanguageInstruction(language)}
 - OUTPUT ONLY THE JSON OBJECT, NO OTHER TEXT`;
 }
 
@@ -906,7 +999,7 @@ CRITICAL: Output ONLY a JSON object. First character must be {. Last character m
 /**
  * Debug Reset Phase 1 System Prompt (C类 — 推倒重来)
  */
-function buildDebugResetPhase1Prompt(studentContext, step, selectedUpgrades = [], attemptCount = 0) {
+function buildDebugResetPhase1Prompt(studentContext, step, selectedUpgrades = [], attemptCount = 0, language = 'en') {
   const successfulUpgrades = studentContext?.successfulUpgrades || [];
   const upgradeList = successfulUpgrades.map(u => u.target_upgrade_label).join(', ') || 'None';
 
@@ -957,7 +1050,7 @@ Attempt Count: ${attemptCount}
 
 ## Response Format — STRICT JSON
 {
-  "response": "What you say to the student IN ENGLISH",
+  "response": "What you say to the student",
   "step": ${step},
   "show_upgrade_selector": ${step === 2},
   "continue": true/false,
@@ -974,13 +1067,13 @@ Attempt Count: ${attemptCount}
 - OUTPUT ONLY THE JSON OBJECT, NO OTHER TEXT
 - NEVER write the new prompt for the student
 - Step 3: after 2 attempts, give guidance then unconditionally pass
-- ALWAYS respond in English`;
+- ${getLanguageInstruction(language)}`;
 }
 
 /**
  * Debug Reset Phase 2 System Prompt (认知反思)
  */
-function buildDebugResetPhase2Prompt(studentContext, keptUpgradesCount, previousUpgradesCount) {
+function buildDebugResetPhase2Prompt(studentContext, keptUpgradesCount, previousUpgradesCount, language = 'en') {
   return `IMPORTANT: Your response must be a single JSON object. Start with { end with }.
 No text before or after. No markdown. No code blocks.
 Example: {"response":"Is your new game working?","continue":true,"insight_note":"","skipped":false}
@@ -1008,7 +1101,7 @@ Curious, not critical. "Do you know why" is not "you did wrong".
 
 ## Response Format — STRICT JSON
 {
-  "response": "What you say to the student IN ENGLISH",
+  "response": "What you say to the student",
   "continue": true/false,
   "insight_note": "What the student understood",
   "skipped": false
@@ -1017,7 +1110,7 @@ Curious, not critical. "Do you know why" is not "you did wrong".
 ## Important Rules
 - OUTPUT ONLY THE JSON OBJECT, NO OTHER TEXT
 - Keep it light and short
-- ALWAYS respond in English`;
+- ${getLanguageInstruction(language)}`;
 }
 
 /**
@@ -1043,6 +1136,9 @@ export default function AgentPanel({
   type,                // debug_verify 用：'prompt_fix' | 'code_fix'
   onDebugToolComplete, // Debug 用：工具完成回调
 }) {
+  // i18n: 获取当前语言
+  const { language } = useLanguage();
+
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1126,9 +1222,8 @@ export default function AgentPanel({
     gate1RoundCounter.current.reset();
     setCurrentRound(1);
 
-    const welcomeMessage = `Hi! I see you picked "${upgrade?.title}" ✨
-
-Tell me, how do you want this feature to work? Share your ideas!`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.gate1Welcome(upgrade?.title);
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
     setCurrentMode('open');
@@ -1144,11 +1239,8 @@ Tell me, how do you want this feature to work? Share your ideas!`;
     }
 
     const upgradeNames = agenda.map(item => item.target_upgrade_label).join(', ');
-    const welcomeMessage = `Welcome back! Let's check your game!
-
-You picked these upgrades: ${upgradeNames}
-
-Did they appear in your game?`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.gate2Welcome(upgradeNames);
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
   }
@@ -1161,9 +1253,8 @@ Did they appear in your game?`;
    * Debug Orchestrator 初始化
    */
   async function initDebugOrchestrator() {
-    const welcomeMessage = `Hey! I'm here to help you debug. 🔧
-
-Tell me, what's going wrong with your game?`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.debugOrchestratorWelcome;
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
     setCurrentMode('open');
@@ -1175,13 +1266,8 @@ Tell me, what's going wrong with your game?`;
    */
   async function initDebugPrompt() {
     // 如果有 bugSummary（从 Orchestrator 传来），直接进入 Round 2
-    const welcomeMessage = bugSummary
-      ? `Got it — "${bugSummary}" 🔧
-
-Did you tell Claude about this in your description? What did you write?`
-      : `Let's fix this! 🔧
-
-Tell me: What went wrong? What did you WANT to happen?`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.debugPromptWelcome(bugSummary);
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
     setCurrentMode('open');
@@ -1196,13 +1282,8 @@ Tell me: What went wrong? What did you WANT to happen?`;
    */
   async function initDebugCode() {
     // 如果有 bugSummary（从 Orchestrator 传来），直接进入 Round 2
-    const welcomeMessage = bugSummary
-      ? `Got it — "${bugSummary}" 🐛
-
-Does this happen every time? Or only sometimes?`
-      : `Let's fix this bug! 🐛
-
-What's going wrong? When does it happen?`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.debugCodeWelcome(bugSummary);
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
     setCurrentMode('open');
@@ -1217,13 +1298,8 @@ What's going wrong? When does it happen?`;
    * Debug Reset Phase 1 初始化 (C类)
    */
   async function initDebugResetPhase1() {
-    const welcomeMessage = bugSummary
-      ? `I understand — "${bugSummary}". Let's start fresh! 🔄
-
-What parts of your game worked well? We can keep those!`
-      : `Let's start fresh! 🔄
-
-What parts of your game worked well? We can keep those!`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.debugResetPhase1Welcome;
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
     setDebugStep(1);
@@ -1237,7 +1313,8 @@ What parts of your game worked well? We can keep those!`;
    * Debug Reset Phase 2 初始化 (反思阶段)
    */
   async function initDebugResetPhase2() {
-    const welcomeMessage = `Welcome back! Is your new game running? 🎮`;
+    const msgs = getAgentMessages(language);
+    const welcomeMessage = msgs.debugResetPhase2Welcome;
 
     setMessages([{ role: 'assistant', content: welcomeMessage }]);
   }
@@ -1246,9 +1323,8 @@ What parts of your game worked well? We can keep those!`;
    * Debug Verify 初始化
    */
   async function initDebugVerify() {
-    const verifyQuestion = type === 'prompt_fix'
-      ? `You added your fix and regenerated the game — is the feature working now?`
-      : `You sent the fix request — is the bug gone?`;
+    const msgs = getAgentMessages(language);
+    const verifyQuestion = msgs.debugVerifyQuestion(type === 'prompt_fix');
 
     setMessages([{ role: 'assistant', content: verifyQuestion }]);
   }
@@ -1662,7 +1738,8 @@ What parts of your game worked well? We can keep those!`;
         studentContext,
         debugStep,
         selectedUpgrades,
-        debugAttemptCount
+        debugAttemptCount,
+        language
       );
       const apiMessages = [
         { role: 'system', content: systemPrompt },
@@ -1723,7 +1800,7 @@ What parts of your game worked well? We can keep those!`;
       const keptCount = selectedUpgrades?.length || 0;
       const prevCount = studentContext?.upgradeSummaries?.length || 0;
 
-      const systemPrompt = buildDebugResetPhase2Prompt(studentContext, keptCount, prevCount);
+      const systemPrompt = buildDebugResetPhase2Prompt(studentContext, keptCount, prevCount, language);
       const apiMessages = [
         { role: 'system', content: systemPrompt },
         ...newMessages.map(m => ({ role: m.role, content: m.content })),
@@ -1825,32 +1902,38 @@ What parts of your game worked well? We can keep those!`;
   /**
    * 发送消息（Gate 1）
    * V17 Phase B: 使用 RoundCounter + preCheckInput
+   * @param {string} userInput - 用户输入
+   * @param {boolean} skipPreCheck - 跳过预检（用于填空模板提交）
    */
-  async function sendGate1Message(userInput) {
+  async function sendGate1Message(userInput, skipPreCheck = false) {
     // V17 Phase B: 使用 RoundCounter 获取当前轮次
     const currentGateRound = gate1RoundCounter.current.get();
 
     // V17 Phase B: 代码层预检（在调用 API 之前）
-    const modeKey = `gate1_${upgrade?.level || 'easy'}`;
-    const preCheck = preCheckInput(userInput, modeKey, currentGateRound);
+    // 跳过填空模板提交的预检，因为填空答案通常较短但是有效的结构化输入
+    if (!skipPreCheck) {
+      const modeKey = `gate1_${upgrade?.level || 'easy'}`;
+      const preCheck = preCheckInput(userInput, modeKey, currentGateRound, language);
 
-    if (!preCheck.shouldCallModel) {
-      // 代码层拦截：不调用 API，直接返回模板响应
-      if (preCheck.forceRelease) {
-        // 超过最大轮次，强制放行
+      if (!preCheck.shouldCallModel) {
+        // 代码层拦截：不调用 API，直接返回模板响应
+        if (preCheck.forceRelease) {
+          // 超过最大轮次，强制放行
+          const msgs = getAgentMessages(language);
+          setMessages(prev => [...prev,
+            { role: 'user', content: userInput },
+            { role: 'assistant', content: msgs.preCheckResponse }
+          ]);
+          handleGate1Finish(rounds, false, bestQuote, undefined);
+          return;
+        }
+        // 无效输入（ok/yes/太短），追问
         setMessages(prev => [...prev,
           { role: 'user', content: userInput },
-          { role: 'assistant', content: "You've shared great ideas! Let's move on to writing them out." }
+          { role: 'assistant', content: preCheck.directResponse }
         ]);
-        handleGate1Finish(rounds, false, bestQuote, undefined);
         return;
       }
-      // 无效输入（ok/yes/太短），追问
-      setMessages(prev => [...prev,
-        { role: 'user', content: userInput },
-        { role: 'assistant', content: preCheck.directResponse }
-      ]);
-      return;
     }
 
     setLoading(true);
@@ -1860,7 +1943,7 @@ What parts of your game worked well? We can keep those!`;
 
     try {
       // 构建 API 消息
-      const systemPrompt = buildGate1SystemPrompt(upgrade, lesson || LESSON);
+      const systemPrompt = buildGate1SystemPrompt(upgrade, lesson || LESSON, language);
       const apiMessages = [
         { role: 'system', content: systemPrompt },
         ...newMessages.map(m => ({ role: m.role, content: m.content })),
@@ -1956,9 +2039,10 @@ What parts of your game worked well? We can keep those!`;
   async function sendGate2Message(userInput) {
     // V17 Phase B: 轻量级验证（Gate 2 允许 yes/no 回答）
     if (!userInput || !userInput.trim()) {
+      const msgs = getAgentMessages(language);
       setMessages(prev => [...prev,
         { role: 'user', content: userInput || '' },
-        { role: 'assistant', content: 'Did the upgrade appear in your game? Please tell me yes or no.' }
+        { role: 'assistant', content: msgs.gate2FallbackQuestion }
       ]);
       return;
     }
@@ -1970,7 +2054,7 @@ What parts of your game worked well? We can keep those!`;
 
     try {
       // 构建 API 消息
-      const systemPrompt = buildGate2SystemPrompt(agenda, gate2Mode);
+      const systemPrompt = buildGate2SystemPrompt(agenda, gate2Mode, language);
       const apiMessages = [
         { role: 'system', content: systemPrompt },
         ...newMessages.map(m => ({ role: m.role, content: m.content })),
@@ -2190,10 +2274,11 @@ What parts of your game worked well? We can keep those!`;
 
   /**
    * 处理填空提交
+   * V17 修复: 填空提交跳过 preCheckInput，因为这是结构化输入
    */
   function handleFillSubmit(value) {
     setFillTemplate('');
-    sendGate1Message(value);
+    sendGate1Message(value, true); // skipPreCheck = true
   }
 
   /**
@@ -2433,7 +2518,9 @@ What parts of your game worked well? We can keep those!`;
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={
-                  activeMode.startsWith('debug') ? "Describe what's happening..." : "Share your ideas..."
+                  activeMode.startsWith('debug')
+                    ? getAgentMessages(language).placeholderDebug
+                    : getAgentMessages(language).placeholderIdeas
                 }
                 disabled={loading}
                 className={`flex-1 px-4 py-2.5 border-2 rounded-full focus:outline-none text-sm disabled:opacity-50 ${

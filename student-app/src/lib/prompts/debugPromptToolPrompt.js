@@ -19,7 +19,19 @@
  * - attemptCount 追踪
  *
  * 2026-05-26: V17 Phase B 重构
+ * 2026-05-27: 添加多语言支持
  */
+
+/**
+ * 获取语言指令
+ * @param {string} language - 'en' or 'zh'
+ * @returns {string}
+ */
+function getLanguageInstruction(language) {
+  return language === 'zh'
+    ? '用中文回复学生。'
+    : 'Reply to student in English.';
+}
 
 /**
  * 构建 Debug Prompt Tool System Prompt
@@ -31,10 +43,11 @@
  * @param {Object} [options] - 额外选项
  * @param {number} [options.attemptCount=0] - 尝试次数
  * @param {boolean} [options.isFirstAfterRoute=false] - 是否是路由后第一条
+ * @param {string} [options.language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
 export function buildPromptToolPrompt(contextString, bugSummary, currentRound, maxRounds, options = {}) {
-  const { attemptCount = 0, isFirstAfterRoute = false } = options;
+  const { attemptCount = 0, isFirstAfterRoute = false, language = 'en' } = options;
   const isFinalRound = currentRound >= maxRounds;
 
   // 脚手架模式（多次尝试后提供句式框架）
@@ -66,7 +79,10 @@ This is FIRST round after arriving from Orchestrator. Bug is already known.
 - In Round 1-3, ALWAYS return fix_quality: "" and student_fix: ""
 - DO NOT evaluate student's response as a "fix" — they are describing the bug, not fixing it`;
 
+  const languageInstruction = getLanguageInstruction(language);
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 Bug: "${bugSummary}"
 Round: ${currentRound} of ${maxRounds}

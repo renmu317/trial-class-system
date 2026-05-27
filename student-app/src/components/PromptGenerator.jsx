@@ -3,9 +3,54 @@
 import { useState } from 'react';
 import { Copy, Check, RotateCcw } from 'lucide-react';
 import { LESSON } from '../lib/lesson';
+import { useLanguage } from '../lib/LanguageContext';
 import Button from './Button';
 
+// 翻译文本
+const PROMPT_TEXT = {
+  en: {
+    ready: 'Your prompt is ready!',
+    copyThen: 'Copy it, then paste into claude.ai',
+    yourDesign: 'Your Design',
+    gameRules: 'Game Rules',
+    showFull: 'Show full prompt',
+    hideFull: 'Hide full prompt',
+    copyPrompt: 'Copy Prompt',
+    copied: 'Copied! Now paste into claude.ai',
+    nextSteps: 'Next steps:',
+    step1: 'Click Copy above',
+    step2: 'Go to',
+    step3: 'Paste into the chat box and press Enter',
+    step4: 'Watch the right side of the screen!',
+    startOver: 'Start Over',
+    copyFailed: "Couldn't copy automatically. Please select the text and press Ctrl+C / Cmd+C.",
+  },
+  zh: {
+    ready: '你的提示词准备好了！',
+    copyThen: '复制后粘贴到 claude.ai',
+    yourDesign: '你的设计',
+    gameRules: '游戏规则',
+    showFull: '显示完整提示词',
+    hideFull: '隐藏完整提示词',
+    copyPrompt: '复制提示词',
+    copied: '已复制！现在粘贴到 claude.ai',
+    nextSteps: '下一步：',
+    step1: '点击上方复制',
+    step2: '打开',
+    step3: '粘贴到聊天框并按回车',
+    step4: '看屏幕右侧！',
+    startOver: '重新开始',
+    copyFailed: '无法自动复制。请选中文本后按 Ctrl+C / Cmd+C。',
+  }
+};
+
+function getPromptText(language) {
+  return PROMPT_TEXT[language] || PROMPT_TEXT.en;
+}
+
 export default function PromptGenerator({ choices, ownInputs, gameName, onReset, onPromptGenerated, lessonConfig, rules }) {
+  const { language } = useLanguage();
+  const t = getPromptText(language);
   const [copied, setCopied] = useState(false);
   const [showFullPrompt, setShowFullPrompt] = useState(false);
 
@@ -66,7 +111,7 @@ export default function PromptGenerator({ choices, ownInputs, gameName, onReset,
         onPromptGenerated?.();
         setTimeout(() => setCopied(false), 2500);
       } catch {
-        alert("Couldn't copy automatically. Please select the text and press Ctrl+C / Cmd+C.");
+        alert(t.copyFailed);
       }
       document.body.removeChild(textarea);
     }
@@ -76,14 +121,14 @@ export default function PromptGenerator({ choices, ownInputs, gameName, onReset,
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-5">
         <div className="text-4xl mb-2">🎉</div>
-        <h2 className="text-2xl font-extrabold text-slate-800 mb-1">Your prompt is ready!</h2>
-        <p className="text-slate-500 text-sm">Copy it, then paste into claude.ai</p>
+        <h2 className="text-2xl font-extrabold text-slate-800 mb-1">{t.ready}</h2>
+        <p className="text-slate-500 text-sm">{t.copyThen}</p>
       </div>
 
       {/* 层1：学生的设计选择（橙色高亮） */}
       <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 mb-3">
         <p className="text-xs font-bold text-orange-600 uppercase tracking-wide mb-3">
-          🎨 Your Design
+          🎨 {t.yourDesign}
         </p>
         <div className="space-y-2">
           {designSummary.map((item, i) => (
@@ -101,7 +146,7 @@ export default function PromptGenerator({ choices, ownInputs, gameName, onReset,
       {gameRules.length > 0 && (
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-3">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-            📋 Game Rules
+            📋 {t.gameRules}
           </p>
           <div className="space-y-1.5">
             {gameRules.map((rule, i) => (
@@ -120,7 +165,7 @@ export default function PromptGenerator({ choices, ownInputs, gameName, onReset,
         onClick={() => setShowFullPrompt(!showFullPrompt)}
         className="w-full text-xs text-slate-400 hover:text-slate-600 mb-3 text-left flex items-center gap-1"
       >
-        {showFullPrompt ? '▲ Hide' : '▼ Show'} full prompt
+        {showFullPrompt ? `▲ ${t.hideFull}` : `▼ ${t.showFull}`}
       </button>
 
       {showFullPrompt && (
@@ -132,25 +177,25 @@ export default function PromptGenerator({ choices, ownInputs, gameName, onReset,
       {/* Copy按钮 */}
       <Button onClick={copyPrompt} variant={copied ? "success" : "primary"} className="w-full mb-3" size="lg">
         {copied ? (
-          <><Check className="w-6 h-6" /> Copied! Now paste into claude.ai</>
+          <><Check className="w-6 h-6" /> {t.copied}</>
         ) : (
-          <><Copy className="w-6 h-6" /> Copy Prompt</>
+          <><Copy className="w-6 h-6" /> {t.copyPrompt}</>
         )}
       </Button>
 
       {/* Next steps */}
       <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4 text-sm text-blue-900">
-        <div className="font-bold mb-2">📋 Next steps:</div>
+        <div className="font-bold mb-2">📋 {t.nextSteps}</div>
         <ol className="list-decimal list-inside space-y-1">
-          <li>Click Copy above</li>
-          <li>Go to <strong>claude.ai</strong></li>
-          <li>Paste into the chat box and press Enter</li>
-          <li>Watch the right side of the screen!</li>
+          <li>{t.step1}</li>
+          <li>{t.step2} <strong>claude.ai</strong></li>
+          <li>{t.step3}</li>
+          <li>{t.step4}</li>
         </ol>
       </div>
 
       <Button onClick={onReset} variant="secondary" size="md" className="w-full">
-        <RotateCcw className="w-4 h-4" /> Start Over
+        <RotateCcw className="w-4 h-4" /> {t.startOver}
       </Button>
     </div>
   );

@@ -1,11 +1,14 @@
 // Lesson Configuration Manager
 // Supports switching between different lessons via URL parameter
+// Supports language switching (en/zh)
 
 import { LESSON, RECOVERY, LEVEL_CONFIG, TABS } from './lesson';
 import { LESSON_2, RECOVERY_2, LEVEL_CONFIG_2, TABS_2 } from './lesson2';
+import { LESSON_ZH, RECOVERY_ZH, LEVEL_CONFIG_ZH, TABS_ZH } from './lessonZh';
+import { LESSON_2_ZH, RECOVERY_2_ZH, LEVEL_CONFIG_2_ZH, TABS_2_ZH } from './lesson2Zh';
 
-// Available lessons registry
-export const LESSONS = {
+// Available lessons registry - organized by language
+const LESSONS_EN = {
   'lesson1': {
     id: 'lesson1',
     name: 'Catch Falling Game',
@@ -23,6 +26,46 @@ export const LESSONS = {
     tabs: TABS_2,
   },
 };
+
+const LESSONS_ZH = {
+  'lesson1': {
+    id: 'lesson1',
+    name: '接落物游戏',
+    lesson: LESSON_ZH,
+    recovery: RECOVERY_ZH,
+    levelConfig: LEVEL_CONFIG_ZH,
+    tabs: TABS_ZH,
+  },
+  'lesson2': {
+    id: 'lesson2',
+    name: 'AI迷宫游戏',
+    lesson: LESSON_2_ZH,
+    recovery: RECOVERY_2_ZH,
+    levelConfig: LEVEL_CONFIG_2_ZH,
+    tabs: TABS_2_ZH,
+  },
+};
+
+// Default export for backward compatibility
+export const LESSONS = LESSONS_EN;
+
+/**
+ * Get lessons by language
+ * @param {string} language - 'en' or 'zh'
+ */
+export function getLessonsByLanguage(language = 'en') {
+  return language === 'zh' ? LESSONS_ZH : LESSONS_EN;
+}
+
+/**
+ * Get specific lesson config by lesson type and language
+ * @param {string} lessonType - 'lesson1' or 'lesson2'
+ * @param {string} language - 'en' or 'zh'
+ */
+export function getLessonConfig(lessonType, language = 'en') {
+  const lessons = getLessonsByLanguage(language);
+  return lessons[lessonType] || lessons['lesson1'];
+}
 
 // Default lesson
 export const DEFAULT_LESSON = 'lesson1';

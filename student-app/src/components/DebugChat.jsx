@@ -18,6 +18,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Send, CheckCircle, Circle, MessageCircle, Camera, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../lib/LanguageContext';
 
 // V17 Phase B: 新架构导入
 import { RoundCounter, preCheckInput, getMaxRounds, INVALID_RESPONSE_TEMPLATES } from '../lib/agentGuards';
@@ -390,6 +391,9 @@ export default function DebugChat({
   pendingVerification,
   setPendingVerification,
 }) {
+  // i18n: 获取当前语言
+  const { language } = useLanguage();
+
   const [chatList, setChatList] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -636,23 +640,25 @@ export default function DebugChat({
     const contextString = formatForDebug(timeline, currentPrompt);
 
     if (mode === 'debug_orchestrator') {
-      return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), qState);
+      return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), qState, language);
     } else if (mode === 'debug_prompt') {
       const maxRounds = getMaxRounds('debug_prompt');
       return buildPromptToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
         attemptCount,
         isFirstAfterRoute,
+        language,
       });
     } else if (mode === 'debug_code') {
       const maxRounds = getMaxRounds('debug_code');
       return buildCodeToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
         attemptCount,
+        language,
       });
     } else if (mode === 'debug_reset_phase1') {
       // 从 timeline 获取成功的 Upgrade 列表
       const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
       setSuccessfulUpgrades(upgrades);
-      return buildResetToolPrompt(contextString, bugSummary, resetStep, selectedUpgrades, attemptCount);
+      return buildResetToolPrompt(contextString, bugSummary, resetStep, selectedUpgrades, attemptCount, language);
     }
 
     return '';
@@ -835,7 +841,7 @@ export default function DebugChat({
         ? orchestratorRoundCounter.current.get()
         : toolRoundCounter.current.get();
 
-      const preCheck = preCheckInput(textContent, currentMode, currentRound);
+      const preCheck = preCheckInput(textContent, currentMode, currentRound, language);
 
       if (!preCheck.shouldCallModel) {
         // 明显无效输入：直接追问，不调用 API

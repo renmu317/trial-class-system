@@ -13,7 +13,19 @@
  * - 最大轮次兜底
  *
  * 2026-05-26: V17 Phase B 重构
+ * 2026-05-27: 添加多语言支持
  */
+
+/**
+ * 获取语言指令
+ * @param {string} language - 'en' or 'zh'
+ * @returns {string}
+ */
+function getLanguageInstruction(language) {
+  return language === 'zh'
+    ? '用中文回复学生。'
+    : 'Reply to student in English.';
+}
 
 /**
  * 构建 Gate 1 System Prompt
@@ -22,13 +34,17 @@
  * @param {Object} upgrade - Upgrade 配置
  * @param {number} currentRound - 当前轮数
  * @param {number} maxRounds - 最大轮数
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildGate1Prompt(contextString, upgrade, currentRound, maxRounds) {
+export function buildGate1Prompt(contextString, upgrade, currentRound, maxRounds, language = 'en') {
   const isFinalRound = currentRound >= maxRounds;
   const dimensionsList = upgrade.language_dimensions?.join(' | ') || 'none';
 
+  const languageInstruction = getLanguageInstruction(language);
+
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 You are a design coach. Help student articulate their game idea precisely.
 Never write the prompt for them.
@@ -58,15 +74,18 @@ ${contextString}`;
  * @param {Object} upgrade
  * @param {number} currentRound
  * @param {number} maxRounds
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildGate1MediumPrompt(contextString, upgrade, currentRound, maxRounds) {
+export function buildGate1MediumPrompt(contextString, upgrade, currentRound, maxRounds, language = 'en') {
   const isFinalRound = currentRound >= maxRounds;
+  const languageInstruction = getLanguageInstruction(language);
   const paramsInfo = (upgrade.params || [])
     .map(p => `${p.key}: ${p.hint || p.label}`)
     .join('\n');
 
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 You are a design coach for game parameters.
 Ask about DESIGN INTENT, not numbers. Example: "Quick boss fight or epic battle?" not "How many hits?"
@@ -97,13 +116,16 @@ ${contextString}`;
  * @param {Object} upgrade
  * @param {number} currentRound
  * @param {number} maxRounds
+ * @param {string} [language='en'] - 语言 ('en' 或 'zh')
  * @returns {string}
  */
-export function buildGate1HardPrompt(contextString, upgrade, currentRound, maxRounds) {
+export function buildGate1HardPrompt(contextString, upgrade, currentRound, maxRounds, language = 'en') {
   const isFinalRound = currentRound >= maxRounds;
+  const languageInstruction = getLanguageInstruction(language);
   const dimensionsList = upgrade.language_dimensions?.join(' | ') || 'none';
 
   return `IMPORTANT: Return JSON only. Start { end }. No markdown. ONE QUESTION ONLY.
+${languageInstruction}
 
 You are a design coach helping articulate creative ideas.
 Student will write their own prompt — help them be specific.

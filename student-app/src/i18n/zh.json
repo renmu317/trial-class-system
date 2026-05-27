@@ -1,0 +1,118 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "copy": "复制",
+    "copied": "已复制！",
+    "cancel": "取消",
+    "back": "返回",
+    "next": "下一步",
+    "start": "开始",
+    "close": "关闭",
+    "send": "发送",
+    "new": "新建",
+    "done": "完成"
+  },
+  "nameInput": {
+    "welcome": "欢迎！",
+    "enterName": "输入你的名字加入课堂",
+    "placeholder": "你的名字...",
+    "joinClass": "加入课堂"
+  },
+  "codeInput": {
+    "title": "加入课堂",
+    "enterCode": "输入老师提供的4位课堂码",
+    "placeholder": "输入课堂码...",
+    "submit": "加入"
+  },
+  "error": {
+    "classNotFound": "找不到课堂",
+    "invalidCode": "课堂码无效，请检查后重试。",
+    "invalidLink": "课堂链接无效。",
+    "classEnded": "课堂已结束。"
+  },
+  "session": {
+    "endedBanner": "课堂已结束。你仍然可以继续玩，但进度不会保存。"
+  },
+  "returning": {
+    "welcomeBack": "欢迎回来，{name}！",
+    "foundGame": "我们找到了你之前的游戏。这是你吗？",
+    "yesItsMe": "是的，是我",
+    "noDifferent": "不是，是其他人"
+  },
+  "design": {
+    "stepOf": "第 {current} 步，共 {total} 步",
+    "buildMyGame": "构建我的游戏",
+    "ownIdea": "你的想法...",
+    "finishFirst": "请先完成设计！",
+    "goToBuild": "去设计"
+  },
+  "rules": {
+    "title": "游戏规则",
+    "description": "设置你的迷宫规则",
+    "nextPrompt": "下一步：生成提示词"
+  },
+  "prompt": {
+    "ready": "提示词已准备好！",
+    "copyThen": "复制后粘贴到 Claude AI",
+    "yourDesign": "你的设计",
+    "gameRules": "游戏规则",
+    "openClaude": "打开 Claude",
+    "startOver": "重新开始",
+    "copyPrompt": "复制提示词"
+  },
+  "upgrade": {
+    "title": "升级你的游戏",
+    "easy": "简单",
+    "medium": "中等",
+    "hard": "困难",
+    "easyDesc": "快速更改 - 选一个然后复制",
+    "mediumDesc": "较大更改 - 先看提示，再复制",
+    "hardDesc": "设计挑战 - 你来写提示词",
+    "myOwnIdea": "我的想法",
+    "writeYourIdea": "你想添加什么？",
+    "startConversation": "开始",
+    "completed": "已完成",
+    "fillNumber": "填入数字",
+    "think": "想一想：",
+    "hint": "提示：",
+    "yourDescription": "你的描述：",
+    "descriptionPlaceholder": "详细描述你想要的效果...",
+    "basedOnConversation": "根据你的对话生成 - 可以修改"
+  },
+  "help": {
+    "title": "需要帮助？",
+    "pickProblem": "选择你遇到的问题"
+  },
+  "debug": {
+    "title": "调试你的游戏",
+    "newChat": "新对话",
+    "describeIssue": "描述发生了什么...",
+    "sendMessage": "发送",
+    "goGenerate": "去生成",
+    "copyFix": "复制修复",
+    "resolved": "已解决",
+    "noChats": "还没有调试记录。点击「新对话」开始。",
+    "whatHappened": "你的游戏出了什么问题？"
+  },
+  "agent": {
+    "title": "让我们来设计这个升级！",
+    "thinking": "思考中...",
+    "continue": "继续",
+    "typeResponse": "输入你的回答...",
+    "selectOption": "选择一个选项",
+    "gate2Title": "成功了吗？",
+    "verifyUpgrade": "让我们检查升级是否出现在你的游戏中"
+  },
+  "tabs": {
+    "build": "设计",
+    "rules": "规则",
+    "prompt": "提示词",
+    "debug": "调试",
+    "help": "帮助",
+    "upgrade": "升级"
+  },
+  "gameName": {
+    "clickToEdit": "点击编辑游戏名称",
+    "myGame": "我的游戏"
+  }
+}
