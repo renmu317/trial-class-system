@@ -554,6 +554,10 @@ function AppContent() {
   if (!studentId) {
     return (
       <>
+        {/* 语言切换按钮（右上角） */}
+        <div className="fixed top-4 right-4 z-50">
+          <LanguageToggle />
+        </div>
         <NameInput sessionName={sessionName} onSubmit={handleNameSubmit} />
 
         {/* 同名学生确认弹窗 */}
