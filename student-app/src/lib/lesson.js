@@ -90,37 +90,19 @@ export const LESSON = {
       if (val === "__own__") return (ownInputs[id] || "").trim();
       return val;
     };
-    const diff = LESSON.steps[3].options.find((o) => o.value === choices.difficulty);
+    const diff = LESSON.steps[3].options.find(o => o.value === choices.difficulty);
     const speed = diff?.meta?.speed || 200;
     const lives = diff?.meta?.lives || 3;
     const catchItem = resolve("catchItem") || "stars";
     const avoidItem = resolve("avoidItem") || "bombs";
     const background = resolve("background") || "dark blue";
     const title = (gameName || "").trim() || LESSON.defaultGameName(choices, ownInputs);
-    const speedLine =
-      choices.difficulty === "__own__"
-        ? `Difficulty: ${resolve("difficulty") || "medium"}`
-        : `Starting fall speed: ${speed} pixels per second`;
-    return `You are a professional game developer. Build a "catch falling objects" game called "${title}" as a playable Artifact.
 
-GAME RULES:
-- Player moves a paddle left and right to catch falling ${catchItem}
-- Player must avoid falling ${avoidItem}
-- Catching ${catchItem} = +1 point
-- Hitting ${avoidItem} = lose a life
+    return `Build a catch-falling-objects game called "${title}" as a playable Artifact.
 
-VISUALS:
-- Background color: ${background}
-- Use clear emoji or colored shapes for the objects
-- Big visible score and lives counter at the top
-
-GAMEPLAY:
-- ${speedLine}
-- Game over after losing ${lives} lives
-- Show a "Game Over" screen with final score and a "Play Again" button
-- Works with arrow keys AND mouse/touch
-
-Make it a playable game in an Artifact panel. Make it fun and responsive.`;
+Catch falling ${catchItem} (+1 point), avoid falling ${avoidItem} (-1 life).
+${lives} lives. Objects fall at ${speed}px/s. Background: ${background}.
+Arrow keys + mouse/touch. Game Over screen with score and Play Again.`;
   },
   upgrades: [
     // Easy upgrades - V17 重设计: fillParam 直接数字输入，无 Gate 1
