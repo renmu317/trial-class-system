@@ -98,11 +98,13 @@ export const LESSON = {
     const background = resolve("background") || "dark blue";
     const title = (gameName || "").trim() || LESSON.defaultGameName(choices, ownInputs);
 
-    return `Build a catch-falling-objects game called "${title}" as a playable Artifact.
+    return `Create a playable catch-falling-objects game called "${title}" in an Artifact panel.
 
-Catch falling ${catchItem} (+1 point), avoid falling ${avoidItem} (-1 life).
-${lives} lives. Objects fall at ${speed}px/s. Background: ${background}.
-Arrow keys + mouse/touch. Game Over screen with score and Play Again.`;
+Rules: Catch falling ${catchItem} (+1 point), avoid ${avoidItem} (-1 life). ${lives} lives total.
+Visuals: ${background} background, objects fall at ${speed}px/s, show score and lives at top.
+Controls: Arrow keys + mouse/touch to move paddle. Show Game Over with score and Play Again button.
+
+Make it a fully working interactive game.`;
   },
   upgrades: [
     // Easy upgrades - V17 重设计: fillParam 直接数字输入，无 Gate 1
