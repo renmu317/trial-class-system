@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Users, Check, Clock, AlertTriangle, BookOpen } from 'lucide-react'
+import { Plus, Users, Check, Clock, AlertTriangle, BookOpen, LogOut, User, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import SessionQRCode from './SessionQRCode'
 
@@ -9,22 +9,22 @@ const AVAILABLE_LESSONS = [
   { id: 'lesson2', name: 'Lesson 2: AI Maze Game', emoji: '🧩' },
 ];
 
-export default function Setup({ onStart }) {
+export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
-  const [taName, setTaName] = useState('')
   const [newSessionName, setNewSessionName] = useState('')
-  const [newSessionDuration, setNewSessionDuration] = useState(90) // V17: 默认90分钟
-  const [newSessionLesson, setNewSessionLesson] = useState('lesson1') // 默认 Lesson 1
+  const [newSessionDuration, setNewSessionDuration] = useState(90)
+  const [newSessionLesson, setNewSessionLesson] = useState('lesson1')
   const [showNewSession, setShowNewSession] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // Load sessions
+  // Load sessions (filtered by organization)
   useEffect(() => {
     const loadSessions = async () => {
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, name, status, created_at, join_code, scheduled_end_at, lesson_type')
+        .select('id, name, status, created_at, join_code, scheduled_end_at, lesson_type, organization_id')
+        .or(`organization_id.eq.${taProfile.organization_id},organization_id.is.null`)
         .order('created_at', { ascending: false })
 
       if (!error && data) {
@@ -34,7 +34,7 @@ export default function Setup({ onStart }) {
     }
 
     loadSessions()
-  }, [])
+  }, [taProfile.organization_id])
 
   // Generate unique 4-digit join code
   const generateJoinCode = () => {
@@ -46,58 +46,41 @@ export default function Setup({ onStart }) {
     if (!newSessionName.trim()) return
 
     const joinCode = generateJoinCode()
-
-    // V17: 计算结束时间
     const scheduledEndAt = new Date(Date.now() + newSessionDuration * 60 * 1000).toISOString()
 
-    // Try with all columns first
-    let result = await supabase
+    const { data, error } = await supabase
       .from('sessions')
       .insert({
         name: newSessionName.trim(),
         status: 'running',
         join_code: joinCode,
         scheduled_end_at: scheduledEndAt,
-        lesson_type: newSessionLesson  // 写入课程类型
+        lesson_type: newSessionLesson,
+        organization_id: taProfile.organization_id  // Associate with TA's organization
       })
       .select()
       .single()
 
-    // If failed due to missing column, try without newer columns
-    if (result.error && result.error.code === 'PGRST204') {
-      console.warn('Some columns not found, creating session with basic fields')
-      result = await supabase
-        .from('sessions')
-        .insert({
-          name: newSessionName.trim(),
-          status: 'running',
-          join_code: joinCode
-        })
-        .select()
-        .single()
-    }
-
-    if (result.error) {
-      console.error('Failed to create session:', result.error)
-      alert('Failed to create session: ' + result.error.message)
+    if (error) {
+      console.error('Failed to create session:', error)
+      alert('Failed to create session: ' + error.message)
       return
     }
 
-    if (result.data) {
-      setSessions([result.data, ...sessions])
-      setSelectedSession(result.data)
+    if (data) {
+      setSessions([data, ...sessions])
+      setSelectedSession(data)
       setShowNewSession(false)
       setNewSessionName('')
-      setNewSessionDuration(90) // 重置为默认值
+      setNewSessionDuration(90)
     }
   }
 
   // Start dashboard
   const handleStart = () => {
-    if (selectedSession && taName) {
-      localStorage.setItem('ta_name', taName)
+    if (selectedSession) {
       localStorage.setItem('session_id', selectedSession.id)
-      onStart(selectedSession, taName)
+      onStart(selectedSession)
     }
   }
 
@@ -112,9 +95,40 @@ export default function Setup({ onStart }) {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">TA Dashboard</h1>
-          <p className="text-gray-500">Select or create a session to get started</p>
+        {/* Header with user info */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">TA Dashboard</h1>
+            <p className="text-gray-500">Select or create a session to get started</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onEnrollment}
+              className="flex items-center gap-2 px-3 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition-colors"
+            >
+              <UserPlus size={18} />
+              <span className="text-sm font-medium">Enrollment</span>
+            </button>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm">
+              <User size={18} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">{taProfile.name}</span>
+              <span className={`text-xs px-2 py-0.5 rounded ${
+                taProfile.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                taProfile.role === 'org_admin' ? 'bg-blue-100 text-blue-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
+                {taProfile.role === 'super_admin' ? 'Admin' :
+                 taProfile.role === 'org_admin' ? 'Org Admin' : 'TA'}
+              </span>
+            </div>
+            <button
+              onClick={onSignOut}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -126,7 +140,7 @@ export default function Setup({ onStart }) {
             </h2>
 
             {/* Session list */}
-            <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+            <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
               {sessions.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-4">No sessions yet</p>
               ) : (
@@ -143,7 +157,6 @@ export default function Setup({ onStart }) {
                     <div>
                       <div className="font-medium text-gray-800 flex items-center gap-1.5">
                         {session.name}
-                        {/* 课程类型标签 */}
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           session.lesson_type === 'lesson2'
                             ? 'bg-purple-100 text-purple-600'
@@ -151,7 +164,6 @@ export default function Setup({ onStart }) {
                         }`}>
                           {session.lesson_type === 'lesson2' ? '🧩 Maze' : '🎮 Catch'}
                         </span>
-                        {/* V17: 没有结束时间的提示 */}
                         {!session.scheduled_end_at && session.status === 'running' && (
                           <span title="No end time set - Agent time features may be limited">
                             <AlertTriangle size={14} className="text-amber-500" />
@@ -211,7 +223,7 @@ export default function Setup({ onStart }) {
                   </select>
                 </div>
 
-                {/* V17: 课时时长选择器 */}
+                {/* Duration selector */}
                 <div className="flex items-center gap-2 mb-3">
                   <Clock size={16} className="text-gray-500" />
                   <span className="text-sm text-gray-600">Duration:</span>
@@ -253,30 +265,10 @@ export default function Setup({ onStart }) {
               </button>
             )}
 
-            {/* TA selection */}
-            <div className="border-t mt-4 pt-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Your Role</h3>
-              <div className="flex gap-2">
-                {['TA1', 'TA2'].map(ta => (
-                  <button
-                    key={ta}
-                    onClick={() => setTaName(ta)}
-                    className={`flex-1 py-2 rounded-lg font-medium transition-colors
-                      ${taName === ta
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                      }`}
-                  >
-                    {ta}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Start button */}
             <button
               onClick={handleStart}
-              disabled={!selectedSession || !taName}
+              disabled={!selectedSession}
               className="w-full mt-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <Check size={20} />
