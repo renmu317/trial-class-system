@@ -1,8 +1,10 @@
 // Phase 2 新增：学生加入页面
 import { useState } from 'react';
+import { useT } from '../i18n';
 import Button from './Button';
 
 export default function NameInput({ sessionName, onSubmit }) {
+  const t = useT();
   const [name, setName] = useState('');
 
   const handleSubmit = (e) => {
@@ -17,7 +19,7 @@ export default function NameInput({ sessionName, onSubmit }) {
       <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-6xl mb-4">🎮</div>
-          <h1 className="text-2xl font-extrabold text-slate-800 mb-2">Welcome!</h1>
+          <h1 className="text-2xl font-extrabold text-slate-800 mb-2">{t('nameInput.welcome')}</h1>
           {sessionName && (
             <p className="text-slate-500">{sessionName}</p>
           )}
@@ -26,14 +28,14 @@ export default function NameInput({ sessionName, onSubmit }) {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
-              What's your name?
+              {t('nameInput.enterName')}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-4 border-4 border-slate-200 rounded-2xl focus:border-indigo-500 focus:outline-none text-lg font-bold"
-              placeholder="Type your name..."
+              placeholder={t('nameInput.placeholder')}
               autoFocus
             />
           </div>
@@ -44,7 +46,7 @@ export default function NameInput({ sessionName, onSubmit }) {
             className="w-full"
             size="lg"
           >
-            Join Class
+            {t('nameInput.joinClass')}
           </Button>
         </form>
       </div>

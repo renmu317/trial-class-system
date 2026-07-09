@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { RECOVERY } from '../lib/lesson';
+import { useT } from '../i18n';
 
 export default function Recovery({ onHelpOpen, lessonConfig }) {
+  const t = useT();
   const [openId, setOpenId] = useState(null);
 
   // Use lessonConfig if provided, otherwise fallback to default RECOVERY
@@ -21,8 +23,8 @@ export default function Recovery({ onHelpOpen, lessonConfig }) {
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">🛟</div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-2">Help</h2>
-        <p className="text-slate-600 text-sm sm:text-base">Tap your problem to see how to fix it</p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-2">{t('help.title')}</h2>
+        <p className="text-slate-600 text-sm sm:text-base">{t('help.pickProblem')}</p>
       </div>
 
       <div className="space-y-3">

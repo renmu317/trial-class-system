@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Loading...",
+    "saving": "Saving...",
     "copy": "Copy",
     "copied": "Copied!",
     "cancel": "Cancel",
@@ -10,7 +11,9 @@
     "close": "Close",
     "send": "Send",
     "new": "New",
-    "done": "Done"
+    "done": "Done",
+    "continue": "Continue",
+    "skip": "Skip"
   },
   "nameInput": {
     "welcome": "Welcome!",
@@ -20,9 +23,35 @@
   },
   "codeInput": {
     "title": "Join Class",
-    "enterCode": "Enter the 4-digit code from your teacher",
+    "enterCode": "Enter the code from your teacher",
     "placeholder": "Enter code...",
-    "submit": "Join"
+    "submit": "Join",
+    "joining": "Joining...",
+    "shortcodeDetected": "Student shortcode detected",
+    "codeHint": "4 digits = class code \u00b7 6 digits = your personal code"
+  },
+  "studentLogin": {
+    "loading": "Loading...",
+    "title": "AI Creative Class",
+    "welcomeBack": "Welcome back",
+    "switch": "Switch",
+    "enterClassCode": "Enter class code to join",
+    "enterCode": "Enter class code",
+    "yourName": "Your name",
+    "enterYourName": "Enter your name",
+    "joinClass": "Join Class",
+    "or": "or",
+    "haveStudentCode": "Have a student code? Log in",
+    "enter6DigitCode": "Enter your 6-character student code",
+    "codeFromEnrollment": "You received this code when you enrolled",
+    "logIn": "Log In",
+    "backToClassCode": "Back to class code",
+    "error6Digits": "Please enter a 6-character student code",
+    "error4Digits": "Please enter a 4-digit class code",
+    "errorEnterName": "Please enter your name",
+    "invalidCode": "Invalid student code",
+    "failedToJoin": "Failed to join class",
+    "connectionError": "Connection error. Please try again."
   },
   "error": {
     "classNotFound": "Class Not Found",
@@ -44,7 +73,8 @@
     "buildMyGame": "Build My Game",
     "ownIdea": "Your idea...",
     "finishFirst": "Finish building first!",
-    "goToBuild": "Go to Build"
+    "goToBuild": "Go to Build",
+    "enterHint": "Press Enter to use \"{placeholder}\", or type your own idea"
   },
   "rules": {
     "title": "Game Rules",
@@ -87,12 +117,36 @@
     "title": "Debug Your Game",
     "newChat": "New Chat",
     "describeIssue": "Describe what's happening...",
+    "describeWithImage": "Describe what's wrong (optional)...",
     "sendMessage": "Send",
-    "goGenerate": "Go to Generate",
+    "goGenerate": "Go Generate",
     "copyFix": "Copy Fix",
-    "resolved": "Resolved",
-    "noChats": "No debug sessions yet. Click 'New Chat' to start.",
-    "whatHappened": "What happened in your game?"
+    "copied": "Copied",
+    "resolved": "resolved",
+    "active": "active",
+    "noChats": "No debug chats yet. Click \"New Chat\" to start!",
+    "clickToStart": "Click \"New Chat\" to start debugging",
+    "whatHappened": "What happened in your game?",
+    "debugSession": "Debug session",
+    "justNow": "just now",
+    "minAgo": "{min} min ago",
+    "hrAgo": "{hr} hr ago",
+    "daysAgo": "{days} days ago",
+    "promptFixInstructions": "Add this to your prompt, then regenerate:",
+    "codeFixInstructions": "Send this to Claude to fix the code:",
+    "resetInstructions": "Use this new prompt to regenerate:",
+    "selectFeatures": "Select features to keep:",
+    "continueBtn": "Continue",
+    "imageTooLarge": "Image too large. Maximum size is 2MB.",
+    "pleaseSelectImage": "Please select an image file.",
+    "somethingWrong": "Something went wrong. Please try again.",
+    "welcomeBack": "Welcome back! Did the fix work? Is your game working now?",
+    "welcomeBackReset": "Welcome back! Is your new game running?",
+    "goToClaude": "Great! Go to Claude and generate your game. Come back and tell me if it worked!",
+    "fallbackGreeting": "Hi! What's going wrong with your game?",
+    "iterationQuestion": "Nice work fixing it! 🎉 Now that it works — if you could make this feature even better or more interesting, what would you change?",
+    "iterationResponse": "That's a great idea! Try telling Claude: \"{idea}\"",
+    "recoveryResponse": "That's a valuable lesson! Remember this next time you build something. 🌟"
   },
   "agent": {
     "title": "Let's design this upgrade!",
@@ -114,5 +168,50 @@
   "gameName": {
     "clickToEdit": "Click to edit game name",
     "myGame": "My Game"
+  },
+  "share": {
+    "title": "Share Your Game!",
+    "subtitle": "Copy the link from Claude and paste it here. Your teacher will send it to your parents!",
+    "pasteLink": "Paste your game link",
+    "placeholder": "https://claude.ai/artifacts/...",
+    "shareWithTeacher": "Share with Teacher →",
+    "saving": "Saving...",
+    "skipForNow": "Skip for now",
+    "gameShared": "Your game is shared!",
+    "teacherWillSend": "Your teacher will send the link to your parents.",
+    "yourLink": "Your game link:",
+    "done": "Done ✓",
+    "inlineTitle": "Share Your Game!",
+    "inlineSubtitle": "Copy the link from Claude and paste it here.",
+    "inlineShare": "Share →",
+    "inlineShared": "Game shared!",
+    "inlineSharedSubtitle": "Your teacher will send it to your parents."
+  },
+  "reflection": {
+    "oneLastQuestion": "One last question:",
+    "prompt": "Today you used language to control AI and create a real game. What's the most important thing you discovered?",
+    "placeholder": "I discovered that...",
+    "save": "Save my discovery",
+    "yourDiscovery": "Your discovery:",
+    "willShare": "Your teacher will share this with your parents. 💌",
+    "skip": "Skip"
+  },
+  "prediction": {
+    "title": "Before you send to Claude...",
+    "subtitle": "What do you think will appear in your game?",
+    "upgrade": "Upgrade",
+    "placeholder": "I think the game will show... / I predict that...",
+    "sendToClaude": "Send to Claude →",
+    "skip": "Skip prediction"
+  },
+  "validation": {
+    "title": "Did your prediction come true?",
+    "yourPrediction": "Your prediction was:",
+    "yesMatched": "✅ Yes, it matched!",
+    "noDifferent": "❌ No, it was different",
+    "whyMatched": "Great prediction! Why do you think it matched?",
+    "whatDifferent": "What was different from what you expected?",
+    "matchedPlaceholder": "Because I described...",
+    "differentPlaceholder": "I expected... but Claude made..."
   }
 }

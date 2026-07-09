@@ -2,9 +2,11 @@
 // V18: 点选改填空 — 输入框 + 快速标签
 import { useState, useEffect } from 'react';
 import { LESSON } from '../lib/lesson';
+import { useT } from '../i18n';
 import Button from './Button';
 
 export default function DesignCard({ choices, setChoices, ownInputs, setOwnInputs, onDone, onOwnIdeaSubmit, lessonConfig }) {
+  const t = useT();
   const [stepIdx, setStepIdx] = useState(0);
   const [inputValue, setInputValue] = useState('');
 
@@ -81,7 +83,7 @@ export default function DesignCard({ choices, setChoices, ownInputs, setOwnInput
       </div>
 
       <div className="mb-2 text-sm font-semibold text-orange-500">
-        Step {stepIdx + 1} of {lesson.steps.length}
+        {t('design.stepOf', { current: stepIdx + 1, total: lesson.steps.length })}
       </div>
       <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-3">
         {step.label}
@@ -100,7 +102,7 @@ export default function DesignCard({ choices, setChoices, ownInputs, setOwnInput
         />
         {/* 提示：可以直接按Enter用默认值 */}
         <p className="text-xs text-slate-400 mt-2 ml-1">
-          Press Enter to use "{placeholder}", or type your own idea
+          {t('design.enterHint', { placeholder })}
         </p>
       </div>
 
@@ -125,7 +127,7 @@ export default function DesignCard({ choices, setChoices, ownInputs, setOwnInput
       <div className="flex gap-3">
         {stepIdx > 0 && (
           <Button variant="ghost" size="md" onClick={() => setStepIdx(stepIdx - 1)}>
-            ← Back
+            ← {t('common.back')}
           </Button>
         )}
         <Button
@@ -134,7 +136,7 @@ export default function DesignCard({ choices, setChoices, ownInputs, setOwnInput
           onClick={submitStep}
           className="flex-1"
         >
-          {isLast ? 'Build My Game →' : 'Next →'}
+          {isLast ? t('design.buildMyGame') + ' →' : t('common.next') + ' →'}
         </Button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "加载中...",
+    "saving": "保存中...",
     "copy": "复制",
     "copied": "已复制！",
     "cancel": "取消",
@@ -10,7 +11,9 @@
     "close": "关闭",
     "send": "发送",
     "new": "新建",
-    "done": "完成"
+    "done": "完成",
+    "continue": "继续",
+    "skip": "跳过"
   },
   "nameInput": {
     "welcome": "欢迎！",
@@ -20,9 +23,35 @@
   },
   "codeInput": {
     "title": "加入课堂",
-    "enterCode": "输入老师提供的4位课堂码",
+    "enterCode": "输入老师提供的课堂码",
     "placeholder": "输入课堂码...",
-    "submit": "加入"
+    "submit": "加入",
+    "joining": "加入中...",
+    "shortcodeDetected": "检测到学生码",
+    "codeHint": "4位数字 = 课堂码 \u00b7 6位数字 = 个人学生码"
+  },
+  "studentLogin": {
+    "loading": "加载中...",
+    "title": "AI创意课堂",
+    "welcomeBack": "欢迎回来",
+    "switch": "切换",
+    "enterClassCode": "输入课堂码加入",
+    "enterCode": "输入课堂码",
+    "yourName": "你的名字",
+    "enterYourName": "输入你的名字",
+    "joinClass": "加入课堂",
+    "or": "或者",
+    "haveStudentCode": "有学生码？点击登录",
+    "enter6DigitCode": "输入6位学生码",
+    "codeFromEnrollment": "这是你报名时收到的学生码",
+    "logIn": "登录",
+    "backToClassCode": "返回课堂码",
+    "error6Digits": "请输入6位学生码",
+    "error4Digits": "请输入4位课堂码",
+    "errorEnterName": "请输入你的名字",
+    "invalidCode": "学生码无效",
+    "failedToJoin": "加入课堂失败",
+    "connectionError": "连接错误，请重试。"
   },
   "error": {
     "classNotFound": "找不到课堂",
@@ -44,7 +73,8 @@
     "buildMyGame": "构建我的游戏",
     "ownIdea": "你的想法...",
     "finishFirst": "请先完成设计！",
-    "goToBuild": "去设计"
+    "goToBuild": "去设计",
+    "enterHint": "按回车使用 \"{placeholder}\"，或输入你的想法"
   },
   "rules": {
     "title": "游戏规则",
@@ -87,12 +117,36 @@
     "title": "调试你的游戏",
     "newChat": "新对话",
     "describeIssue": "描述发生了什么...",
+    "describeWithImage": "描述问题（可选）...",
     "sendMessage": "发送",
     "goGenerate": "去生成",
     "copyFix": "复制修复",
+    "copied": "已复制",
     "resolved": "已解决",
-    "noChats": "还没有调试记录。点击「新对话」开始。",
-    "whatHappened": "你的游戏出了什么问题？"
+    "active": "进行中",
+    "noChats": "还没有调试记录。点击「新对话」开始！",
+    "clickToStart": "点击「新对话」开始调试",
+    "whatHappened": "你的游戏出了什么问题？",
+    "debugSession": "调试会话",
+    "justNow": "刚刚",
+    "minAgo": "{min}分钟前",
+    "hrAgo": "{hr}小时前",
+    "daysAgo": "{days}天前",
+    "promptFixInstructions": "把这段加到你的提示词里，然后重新生成：",
+    "codeFixInstructions": "发送给 Claude 来修复代码：",
+    "resetInstructions": "用这个新提示词重新生成：",
+    "selectFeatures": "选择要保留的功能：",
+    "continueBtn": "继续",
+    "imageTooLarge": "图片太大，最大支持2MB。",
+    "pleaseSelectImage": "请选择图片文件。",
+    "somethingWrong": "出了点问题，请重试。",
+    "welcomeBack": "欢迎回来！修复有效果吗？游戏正常了吗？",
+    "welcomeBackReset": "欢迎回来！新游戏运行正常吗？",
+    "goToClaude": "好的！去 Claude 生成游戏吧。回来告诉我结果！",
+    "fallbackGreeting": "嗨！你的游戏出了什么问题？",
+    "iterationQuestion": "修好啦！🎉 现在它能用了——如果你能让这个功能更好或更有趣，你会怎么改？",
+    "iterationResponse": "好想法！试着告诉 Claude：「{idea}」",
+    "recoveryResponse": "这是很有价值的经验！下次做东西时记住它。🌟"
   },
   "agent": {
     "title": "让我们来设计这个升级！",
@@ -114,5 +168,50 @@
   "gameName": {
     "clickToEdit": "点击编辑游戏名称",
     "myGame": "我的游戏"
+  },
+  "share": {
+    "title": "分享你的游戏！",
+    "subtitle": "从 Claude 复制链接粘贴到这里。老师会发送给你的父母！",
+    "pasteLink": "粘贴游戏链接",
+    "placeholder": "https://claude.ai/artifacts/...",
+    "shareWithTeacher": "分享给老师 →",
+    "saving": "保存中...",
+    "skipForNow": "先跳过",
+    "gameShared": "游戏已分享！",
+    "teacherWillSend": "老师会把链接发送给你的父母。",
+    "yourLink": "你的游戏链接：",
+    "done": "完成 ✓",
+    "inlineTitle": "分享你的游戏！",
+    "inlineSubtitle": "从 Claude 复制链接粘贴到这里。",
+    "inlineShare": "分享 →",
+    "inlineShared": "游戏已分享！",
+    "inlineSharedSubtitle": "老师会发送给你的父母。"
+  },
+  "reflection": {
+    "oneLastQuestion": "最后一个问题：",
+    "prompt": "今天你用语言控制 AI 创造了一个真正的游戏。你最重要的发现是什么？",
+    "placeholder": "我发现...",
+    "save": "保存我的发现",
+    "yourDiscovery": "你的发现：",
+    "willShare": "老师会把这个分享给你的父母。💌",
+    "skip": "跳过"
+  },
+  "prediction": {
+    "title": "发送给 Claude 之前...",
+    "subtitle": "你觉得游戏里会出现什么？",
+    "upgrade": "升级",
+    "placeholder": "我觉得游戏会出现... / 我预测...",
+    "sendToClaude": "发送给 Claude →",
+    "skip": "跳过预测"
+  },
+  "validation": {
+    "title": "你的预测实现了吗？",
+    "yourPrediction": "你的预测是：",
+    "yesMatched": "✅ 是的，一样！",
+    "noDifferent": "❌ 不是，不一样",
+    "whyMatched": "预测得很准！你觉得为什么会准？",
+    "whatDifferent": "和你想的有什么不一样？",
+    "matchedPlaceholder": "因为我描述了...",
+    "differentPlaceholder": "我以为会... 但 Claude 做成了..."
   }
 }

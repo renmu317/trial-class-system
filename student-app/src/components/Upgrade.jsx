@@ -1,9 +1,11 @@
 // Phase 1 原版 + Phase 2 event callbacks + V17 Agent Start button + Multi-lesson support
+// P7: Added PredictionPrompt integration for cognitive behavior training
 import { useState, useEffect } from 'react';
 import { Copy, Check, ChevronRight, Play } from 'lucide-react';
 import { LESSON, LEVEL_CONFIG } from '../lib/lesson';
 import Button from './Button';
 import { useLanguage } from '../lib/LanguageContext';
+import PredictionPrompt from './PredictionPrompt';
 
 // Upgrade 组件翻译
 const UPGRADE_TEXT = {
@@ -130,7 +132,7 @@ function EasyFillCard({ up, copiedId, onCopy, language = 'en' }) {
       )}
 
       <Button
-        onClick={() => finalPrompt && onCopy(finalPrompt, up.id, up.level)}
+        onClick={() => finalPrompt && onCopy(finalPrompt, up.id, up.level, up.title)}
         variant={copiedId === up.id ? "success" : "primary"}
         size="sm"
         className="w-full"
@@ -224,7 +226,7 @@ function MediumCard({ up, copiedId, onCopy, onStart, isCompleted, recommendation
           </div>
 
           <Button
-            onClick={() => allFilled && onCopy(finalPrompt, up.id, up.level)}
+            onClick={() => allFilled && onCopy(finalPrompt, up.id, up.level, up.title)}
             variant={copiedId === up.id ? "success" : "primary"}
             size="sm"
             className="w-full"
@@ -358,7 +360,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
         </div>
 
         <Button
-          onClick={() => allFilled && onCopy(finalPrompt, up.id, up.level)}
+          onClick={() => allFilled && onCopy(finalPrompt, up.id, up.level, up.title)}
           variant={copiedId === up.id ? "success" : "primary"}
           size="sm"
           className="w-full"
@@ -402,7 +404,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
         <Button
           onClick={() => {
             if (valid) {
-              onCopy(up.buildPrompt(trimmed), up.id, up.level);
+              onCopy(up.buildPrompt(trimmed), up.id, up.level, up.title);
               onOwnIdeaSubmit?.(trimmed);  // V17: trigger own idea event
             }
           }}
@@ -475,7 +477,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
             )}
 
             <Button
-              onClick={() => valid && onCopy(wrapped, up.id, up.level)}
+              onClick={() => valid && onCopy(wrapped, up.id, up.level, up.title)}
               variant={copiedId === up.id ? "success" : "primary"}
               size="sm"
               className="w-full"
@@ -520,7 +522,7 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
         </Button>
       ) : (
         <Button
-          onClick={() => onCopy(up.prompt, up.id, up.level)}
+          onClick={() => onCopy(up.prompt, up.id, up.level, up.title)}
           variant={copiedId === up.id ? "success" : "primary"}
           size="sm"
           className="w-full"
@@ -532,16 +534,49 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
   );
 }
 
-export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, onStartUpgrade, completedUpgrades = [], upgradeRecommendations = {}, upgradeQuotes = {}, upgradeDrafts = {}, dynamicUpgradeConfig = {}, lessonConfig }) {
+export default function Upgrade({
+  onUpgradeCopy,
+  onLevelOpen,
+  onOwnIdeaSubmit,
+  onStartUpgrade,
+  completedUpgrades = [],
+  upgradeRecommendations = {},
+  upgradeQuotes = {},
+  upgradeDrafts = {},
+  dynamicUpgradeConfig = {},
+  lessonConfig,
+  // P7: New props for Prediction
+  studentId,
+  sessionId,
+  onPredictionMade,
+}) {
   const [copiedId, setCopiedId] = useState(null);
   const [openLevels, setOpenLevels] = useState({ easy: true, medium: false, hard: false });
   const { language } = useLanguage();
   const t = getUpgradeText(language);
 
+  // P7: Prediction state
+  const [showPrediction, setShowPrediction] = useState(false);
+  const [pendingCopy, setPendingCopy] = useState(null);
+
   // Use lessonConfig if provided, otherwise fallback to defaults
   const { lesson, levelConfig } = getLessonAndConfig(lessonConfig);
 
-  const copyText = async (text, id, level) => {
+  // P7: Modified copyText to show PredictionPrompt first
+  const copyText = async (text, id, level, label) => {
+    // If we have studentId and sessionId, show prediction prompt first
+    if (studentId && sessionId) {
+      setPendingCopy({ text, id, level, label });
+      setShowPrediction(true);
+      return;
+    }
+
+    // Fallback: direct copy without prediction
+    await performCopy(text, id, level);
+  };
+
+  // P7: Actual copy function
+  const performCopy = async (text, id, level) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -555,6 +590,33 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, o
     setCopiedId(id);
     onUpgradeCopy?.(id, level);  // Phase 2: event callback
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // P7: Handle prediction confirm
+  const handlePredictionConfirm = async (prediction) => {
+    setShowPrediction(false);
+
+    if (pendingCopy) {
+      // Perform the actual copy
+      await performCopy(pendingCopy.text, pendingCopy.id, pendingCopy.level);
+
+      // Notify App.jsx about the prediction
+      onPredictionMade?.(prediction, pendingCopy.id, pendingCopy.label);
+    }
+
+    setPendingCopy(null);
+  };
+
+  // P7: Handle prediction skip
+  const handlePredictionSkip = async () => {
+    setShowPrediction(false);
+
+    if (pendingCopy) {
+      // Perform the actual copy without prediction
+      await performCopy(pendingCopy.text, pendingCopy.id, pendingCopy.level);
+    }
+
+    setPendingCopy(null);
   };
 
   const toggleLevel = (lvl) => {
@@ -641,6 +703,18 @@ export default function Upgrade({ onUpgradeCopy, onLevelOpen, onOwnIdeaSubmit, o
           </div>
         );
       })}
+
+      {/* P7: PredictionPrompt modal */}
+      {showPrediction && pendingCopy && (
+        <PredictionPrompt
+          studentId={studentId}
+          sessionId={sessionId}
+          upgradeId={pendingCopy.id}
+          upgradeLabel={pendingCopy.label}
+          onConfirm={handlePredictionConfirm}
+          onSkip={handlePredictionSkip}
+        />
+      )}
     </div>
   );
 }

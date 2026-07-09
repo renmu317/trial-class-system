@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Copy, Check, Download, RefreshCw, ExternalLink } from 'lucide-react'
 
-const STUDENT_APP_URL = import.meta.env.VITE_STUDENT_APP_URL || 'https://student-app-one-mu.vercel.app'
+const STUDENT_APP_URL = import.meta.env.VITE_STUDENT_APP_URL || 'https://trial-class-system.vercel.app'
 
 export default function EnrollmentTable({ batch, enrollments, onRefresh }) {
   const [copiedId, setCopiedId] = useState(null)

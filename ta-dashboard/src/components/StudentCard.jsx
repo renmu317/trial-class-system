@@ -156,6 +156,8 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
   const [generatedReport, setGeneratedReport] = useState(null)
   const [agentSummary, setAgentSummary] = useState(null)  // V17: Agent session summary
   const [debugSummary, setDebugSummary] = useState(null)  // Debug sessions summary
+  const [agentExpanded, setAgentExpanded] = useState(false)  // Language precision expand state
+  const [agentDetails, setAgentDetails] = useState([])  // Detailed agent sessions
 
   // Calculate conversion score and dimension status
   const conversionScore = calculateConversionScore(signals)
@@ -191,6 +193,27 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
 
     fetchAgentSummary()
   }, [student.id])
+
+  // Fetch detailed agent sessions when expanded
+  useEffect(() => {
+    if (!agentExpanded) return
+
+    const fetchAgentDetails = async () => {
+      try {
+        const { data } = await supabase
+          .from('agent_sessions')
+          .select('id, target_upgrade_label, upgrade_difficulty, actual_rounds, early_release, gate1_completed, upgrade_appeared, best_student_quote, created_at')
+          .eq('student_id', student.id)
+          .order('created_at', { ascending: false })
+
+        setAgentDetails(data || [])
+      } catch (e) {
+        console.warn('Could not fetch agent details:', e)
+      }
+    }
+
+    fetchAgentDetails()
+  }, [agentExpanded, student.id])
 
   // Fetch debug sessions summary
   useEffect(() => {
@@ -377,26 +400,35 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
             onToggleExpand={() => setConversionExpanded(!conversionExpanded)}
           />
 
-          {/* V17: Agent Language Precision signals */}
+          {/* V17: Agent Language Precision signals - Expandable */}
           {agentSummary && agentSummary.total > 0 && (
-            <div className={`border rounded-lg p-2 ${
+            <div className={`border rounded-lg overflow-hidden ${
               agentSummary.round3 > 0 && agentSummary.pendingVerify > 0
                 ? 'bg-red-50 border-red-200'
                 : 'bg-indigo-50 border-indigo-200'
             }`}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <MessageCircle size={14} className="text-indigo-600" />
-                <span className="text-xs font-semibold text-gray-700">LANGUAGE PRECISION</span>
-                {/* V17: 高优先级信号 - 红色高亮 */}
-                {agentSummary.round3 > 0 && agentSummary.pendingVerify > 0 && (
-                  <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                    <AlertTriangle size={10} /> NEEDS HELP
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <button
+                onClick={() => setAgentExpanded(!agentExpanded)}
+                className="w-full p-2 flex items-center justify-between hover:bg-indigo-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <MessageCircle size={14} className="text-indigo-600" />
+                  <span className="text-xs font-semibold text-gray-700">LANGUAGE PRECISION</span>
+                  <span className="text-xs text-gray-500">({agentSummary.total})</span>
+                  {/* V17: 高优先级信号 - 红色高亮 */}
+                  {agentSummary.round3 > 0 && agentSummary.pendingVerify > 0 && (
+                    <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                      <AlertTriangle size={10} /> NEEDS HELP
+                    </span>
+                  )}
+                </div>
+                <ChevronDown size={14} className={`text-gray-400 transition-transform ${agentExpanded ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Summary row - always visible */}
+              <div className="px-2 pb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                 {agentSummary.earlyRelease > 0 && (
-                  <span className="text-green-600">🟢 {agentSummary.earlyRelease}× 1-round pass</span>
+                  <span className="text-green-600">🟢 {agentSummary.earlyRelease}× 1-round</span>
                 )}
                 {agentSummary.round2 > 0 && (
                   <span className="text-yellow-600">🟡 {agentSummary.round2}× 2-round</span>
@@ -405,12 +437,54 @@ export default function StudentCard({ student, signals, events, isStuck, onDelet
                   <span className="text-red-600">🔴 {agentSummary.round3}× 3-round</span>
                 )}
                 {agentSummary.diagnosed > 0 && (
-                  <span className="text-blue-600">💡 {agentSummary.diagnosed}× self-diagnosed</span>
+                  <span className="text-blue-600">💡 {agentSummary.diagnosed}× diagnosed</span>
                 )}
                 {agentSummary.pendingVerify > 0 && (
-                  <span className="text-orange-600">⏳ {agentSummary.pendingVerify}× pending verify</span>
+                  <span className="text-orange-600">⏳ {agentSummary.pendingVerify}× pending</span>
                 )}
               </div>
+
+              {/* Expanded details */}
+              {agentExpanded && (
+                <div className="border-t border-indigo-200 p-2 space-y-2 bg-white/50">
+                  {agentDetails.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center">Loading...</p>
+                  ) : (
+                    agentDetails.map((session, idx) => (
+                      <div key={session.id} className="text-xs bg-white rounded p-2 border border-gray-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-medium ${
+                            session.early_release ? 'text-green-600' :
+                            session.actual_rounds === 3 ? 'text-red-600' :
+                            'text-yellow-600'
+                          }`}>
+                            {session.target_upgrade_label || `Upgrade ${idx + 1}`}
+                          </span>
+                          <span className="text-gray-400">
+                            [{session.upgrade_difficulty}]
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${
+                            session.early_release ? 'bg-green-100 text-green-700' :
+                            session.actual_rounds === 3 ? 'bg-red-100 text-red-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {session.early_release ? '1-round ✓' : `${session.actual_rounds}-round`}
+                          </span>
+                          {session.upgrade_appeared === true && (
+                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">verified ✓</span>
+                          )}
+                          {session.upgrade_appeared === false && (
+                            <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">not appeared</span>
+                          )}
+                        </div>
+                        {session.best_student_quote && (
+                          <p className="text-gray-600 italic mt-1">"{session.best_student_quote}"</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           )}
 

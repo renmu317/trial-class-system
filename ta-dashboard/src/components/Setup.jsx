@@ -17,15 +17,49 @@ export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
   const [newSessionLesson, setNewSessionLesson] = useState('lesson1')
   const [showNewSession, setShowNewSession] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [organization, setOrganization] = useState(null)
+  const [allOrgs, setAllOrgs] = useState({}) // id -> name mapping for super_admin
 
-  // Load sessions (filtered by organization)
+  // Load organization and sessions
   useEffect(() => {
-    const loadSessions = async () => {
-      const { data, error } = await supabase
+    const loadData = async () => {
+      // Load organization info
+      if (taProfile.role === 'super_admin') {
+        // Super admin: load all organizations
+        const { data: orgsData } = await supabase
+          .from('organizations')
+          .select('id, name, slug')
+
+        if (orgsData) {
+          const orgMap = {}
+          orgsData.forEach(org => { orgMap[org.id] = org.name })
+          setAllOrgs(orgMap)
+        }
+      } else {
+        // Regular TA: load own organization
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('id, name, slug')
+          .eq('id', taProfile.organization_id)
+          .single()
+
+        if (orgData) {
+          setOrganization(orgData)
+        }
+      }
+
+      // Load sessions (super_admin sees all, others see own org only)
+      let query = supabase
         .from('sessions')
         .select('id, name, status, created_at, join_code, scheduled_end_at, lesson_type, organization_id')
-        .or(`organization_id.eq.${taProfile.organization_id},organization_id.is.null`)
         .order('created_at', { ascending: false })
+
+      // Filter by organization unless super_admin
+      if (taProfile.role !== 'super_admin') {
+        query = query.or(`organization_id.eq.${taProfile.organization_id},organization_id.is.null`)
+      }
+
+      const { data, error } = await query
 
       if (!error && data) {
         setSessions(data)
@@ -33,7 +67,7 @@ export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
       setLoading(false)
     }
 
-    loadSessions()
+    loadData()
   }, [taProfile.organization_id])
 
   // Generate unique 4-digit join code
@@ -98,7 +132,9 @@ export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
         {/* Header with user info */}
         <div className="flex items-center justify-between mb-8">
           <div className="text-center flex-1">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">TA Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              {taProfile.role === 'super_admin' ? 'Admin Dashboard' : (organization?.name || 'TA Dashboard')}
+            </h1>
             <p className="text-gray-500">Select or create a session to get started</p>
           </div>
           <div className="flex items-center gap-3">
@@ -175,6 +211,11 @@ export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
                         {session.scheduled_end_at && (
                           <span className="ml-2 text-blue-500">
                             Ends {new Date(session.scheduled_end_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        )}
+                        {taProfile.role === 'super_admin' && session.organization_id && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                            {allOrgs[session.organization_id] || 'Unknown'}
                           </span>
                         )}
                       </div>

@@ -30,7 +30,11 @@ function parseCSV(content: string): EnrollmentRow[] {
   }
 
   const header = lines[0].split(',').map(h => h.trim().toLowerCase())
-  const nameIndex = header.findIndex(h => h.includes('name') || h.includes('姓名'))
+  // Match "name" or "姓名" but NOT "unnamed" - use word boundary or exact match
+  const nameIndex = header.findIndex(h =>
+    h === 'name' || h === '姓名' || h === 'student_name' || h === 'student name' ||
+    h.startsWith('name') || h.endsWith('name') || h.includes('姓名')
+  )
   const phoneIndex = header.findIndex(h => h.includes('phone') || h.includes('电话') || h.includes('手机'))
   const gradeIndex = header.findIndex(h => h.includes('grade') || h.includes('年级'))
 

@@ -19,6 +19,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Send, CheckCircle, Circle, MessageCircle, Camera, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../lib/LanguageContext';
+import { useT } from '../i18n';
 
 // V17 Phase B: 新架构导入
 import { RoundCounter, preCheckInput, getMaxRounds, INVALID_RESPONSE_TEMPLATES } from '../lib/agentGuards';
@@ -26,11 +27,13 @@ import { callAgent, callAgentDirect } from '../lib/agentCaller';
 import { buildOrchestratorPrompt } from '../lib/prompts/debugOrchestratorPrompt';
 import { buildPromptToolPrompt } from '../lib/prompts/debugPromptToolPrompt';
 import { buildCodeToolPrompt, buildResetToolPrompt } from '../lib/prompts/debugCodeToolPrompt';
+import { buildResolutionJudgePrompt } from '../lib/prompts/resolutionJudgePrompt';
 import { addRouteMarker, compressTool, compressChat, trimConversationHistory } from '../lib/conversationHistory';
 import {
   writeDebugMessage,
   writeDebugToolSwitch,
   writeDebugComplete,
+  writeEvent,
   formatForDebug,
   getTimeline,
   invalidateCache
@@ -51,14 +54,14 @@ const DEEPSEEK_PROXY_URL = `${SUPABASE_URL}/functions/v1/deepseek-proxy`;
 // 子组件：ChatSidebar — 左边历史列表
 // =====================================================
 
-function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat }) {
+function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat, t }) {
   const formatTimeAgo = (timestamp) => {
     if (!timestamp) return '';
     const diff = Date.now() - new Date(timestamp).getTime();
-    if (diff < 60000) return 'just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hr ago`;
-    return `${Math.floor(diff / 86400000)} days ago`;
+    if (diff < 60000) return t('debug.justNow');
+    if (diff < 3600000) return t('debug.minAgo', { min: Math.floor(diff / 60000) });
+    if (diff < 86400000) return t('debug.hrAgo', { hr: Math.floor(diff / 3600000) });
+    return t('debug.daysAgo', { days: Math.floor(diff / 86400000) });
   };
 
   return (
@@ -68,14 +71,14 @@ function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat }) {
         onClick={onNewChat}
         className="m-3 flex items-center justify-center gap-2 px-3 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors"
       >
-        <Plus size={16} /> New Chat
+        <Plus size={16} /> {t('debug.newChat')}
       </button>
 
       {/* Chat 列表 */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {chatList.length === 0 && (
           <p className="text-xs text-slate-400 text-center mt-4 px-2">
-            No debug chats yet. Click "New Chat" to start!
+            {t('debug.noChats')}
           </p>
         )}
         {chatList.map(chat => (
@@ -89,7 +92,7 @@ function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat }) {
             }`}
           >
             <div className="font-medium text-slate-700 text-xs truncate leading-tight">
-              {chat.chat_title || 'Debug session'}
+              {chat.chat_title || t('debug.debugSession')}
             </div>
             <div className="text-slate-400 text-xs mt-1">
               {formatTimeAgo(chat.started_at)}
@@ -98,9 +101,9 @@ function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat }) {
               chat.resolved ? 'text-green-600' : 'text-orange-500'
             }`}>
               {chat.resolved ? (
-                <><CheckCircle size={10} /> resolved</>
+                <><CheckCircle size={10} /> {t('debug.resolved')}</>
               ) : (
-                <><Circle size={10} className="fill-current" /> active</>
+                <><Circle size={10} className="fill-current" /> {t('debug.active')}</>
               )}
             </div>
           </button>
@@ -114,7 +117,7 @@ function ChatSidebar({ chatList, activeChatId, onSelectChat, onNewChat }) {
 // 子组件：ExecutionUI — 放行时显示 fix 框
 // =====================================================
 
-function ExecutionUI({ payload, onGoGenerate }) {
+function ExecutionUI({ payload, onGoGenerate, t }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -133,9 +136,9 @@ function ExecutionUI({ payload, onGoGenerate }) {
   return (
     <div className={`rounded-xl border p-4 mt-2 ${colors.bg} ${colors.border}`}>
       <p className="text-sm font-bold mb-2 text-slate-700">
-        {payload.type === 'prompt_fix' && 'Add this to your prompt, then regenerate:'}
-        {payload.type === 'code_fix' && 'Send this to Claude to fix the code:'}
-        {payload.type === 'reset' && 'Use this new prompt to regenerate:'}
+        {payload.type === 'prompt_fix' && t('debug.promptFixInstructions')}
+        {payload.type === 'code_fix' && t('debug.codeFixInstructions')}
+        {payload.type === 'reset' && t('debug.resetInstructions')}
       </p>
       <div className="bg-white border border-slate-200 rounded-lg p-3 font-mono text-sm mb-3 whitespace-pre-wrap">
         {payload.fixText}
@@ -145,13 +148,13 @@ function ExecutionUI({ payload, onGoGenerate }) {
           onClick={handleCopy}
           className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white hover:bg-slate-50 transition-colors"
         >
-          {copied ? '✓ Copied' : '📋 Copy'}
+          {copied ? `✓ ${t('debug.copied')}` : `📋 ${t('common.copy')}`}
         </button>
         <button
           onClick={onGoGenerate}
           className={`px-4 py-2 text-white rounded-lg text-sm font-bold transition-colors ${colors.btn}`}
         >
-          Go Generate →
+          {t('debug.goGenerate')} →
         </button>
       </div>
     </div>
@@ -162,10 +165,10 @@ function ExecutionUI({ payload, onGoGenerate }) {
 // 子组件：UpgradeSelector — Reset 时选择保留的功能
 // =====================================================
 
-function UpgradeSelector({ upgrades, selected, onSelect, onConfirm }) {
+function UpgradeSelector({ upgrades, selected, onSelect, onConfirm, t }) {
   return (
     <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mt-2">
-      <p className="text-sm font-bold text-purple-800 mb-3">Select features to keep:</p>
+      <p className="text-sm font-bold text-purple-800 mb-3">{t('debug.selectFeatures')}</p>
       <div className="space-y-2 max-h-40 overflow-y-auto">
         {upgrades.map((u, i) => (
           <label key={i} className="flex items-center gap-2 p-2 bg-white rounded-lg cursor-pointer hover:bg-purple-100 transition-colors">
@@ -189,7 +192,7 @@ function UpgradeSelector({ upgrades, selected, onSelect, onConfirm }) {
         onClick={onConfirm}
         className="w-full mt-3 py-2 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
       >
-        Continue →
+        {t('debug.continueBtn')} →
       </button>
     </div>
   );
@@ -217,6 +220,7 @@ function ChatWindow({
   onImageSelect,
   onRemoveImage,
   imageInputRef,
+  t,
 }) {
   const messagesEndRef = useRef(null);
 
@@ -230,7 +234,7 @@ function ChatWindow({
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center text-slate-400">
           <MessageCircle size={48} className="mx-auto mb-3 opacity-50" />
-          <p className="text-sm">Click "New Chat" to start debugging</p>
+          <p className="text-sm">{t('debug.clickToStart')}</p>
         </div>
       </div>
     );
@@ -281,7 +285,7 @@ function ChatWindow({
 
         {/* 执行层 UI：放行时显示 fix prompt 框 */}
         {executionPayload && (
-          <ExecutionUI payload={executionPayload} onGoGenerate={onGoGenerate} />
+          <ExecutionUI payload={executionPayload} onGoGenerate={onGoGenerate} t={t} />
         )}
 
         {/* Reset 时的 Upgrade 选择器 */}
@@ -291,6 +295,7 @@ function ChatWindow({
             selected={selectedUpgrades}
             onSelect={onSelectUpgrades}
             onConfirm={onConfirmUpgrades}
+            t={t}
           />
         )}
 
@@ -362,7 +367,7 @@ function ChatWindow({
             value={inputText}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
-            placeholder={pendingImage ? "Describe what's wrong (optional)..." : "Describe what's happening..."}
+            placeholder={pendingImage ? t('debug.describeWithImage') : t('debug.describeIssue')}
             disabled={isLoading}
             className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-400 disabled:opacity-50 transition-colors"
           />
@@ -391,8 +396,9 @@ export default function DebugChat({
   pendingVerification,
   setPendingVerification,
 }) {
-  // i18n: 获取当前语言
+  // i18n: 获取当前语言和翻译函数
   const { language } = useLanguage();
+  const t = useT();
 
   const [chatList, setChatList] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -430,6 +436,9 @@ export default function DebugChat({
   // Image upload state
   const [pendingImage, setPendingImage] = useState(null);
   const imageInputRef = useRef(null);
+
+  // P7: Resolution/Iteration/Recovery state
+  const [awaitingResolution, setAwaitingResolution] = useState(false);
 
   // 初始化：加载 chat 列表 + Realtime subscription
   useEffect(() => {
@@ -504,6 +513,7 @@ export default function DebugChat({
       setRelatedUpgradeId(data.related_upgrade_id || null);  // Gate 2 重设计
       setExecutionPayload(null);
       setShowUpgradeSelector(false);
+      setAwaitingResolution(false);  // P7: Reset resolution state
 
       // V17 Phase B: 从对话历史计算 round
       const userMessages = (data.conversation_history || []).filter(m => m.role === 'user');
@@ -670,12 +680,12 @@ export default function DebugChat({
 
   const handleImageSelect = (file) => {
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image too large. Maximum size is 2MB.');
+      alert(t('debug.imageTooLarge'));
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file.');
+      alert(t('debug.pleaseSelectImage'));
       return;
     }
 
@@ -732,6 +742,7 @@ export default function DebugChat({
     setResetStep(1);
     setSelectedUpgrades([]);
     setQState({ q1: null, q2: null, q3: null, q4: null });
+    setAwaitingResolution(false);  // P7: Reset resolution state
 
     // V17 Phase B: 重置 RoundCounter
     orchestratorRoundCounter.current.reset();
@@ -762,7 +773,7 @@ export default function DebugChat({
       console.error('Failed to start debug chat:', error);
       setMessages([{
         role: 'assistant',
-        content: "Hi! What's going wrong with your game?",
+        content: t('debug.fallbackGreeting'),
         timestamp: new Date().toISOString(),
       }]);
     } finally {
@@ -813,6 +824,95 @@ export default function DebugChat({
 
     const hasImage = !!pendingImage;
     const textContent = inputText.trim() || (hasImage ? 'Please analyze this screenshot.' : '');
+
+    // P7: Check for iteration/recovery prompt response first
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.isIterationPrompt && !hasImage) {
+      await handleIterationResponse(textContent);
+      return;
+    }
+    if (lastMessage?.isRecoveryPrompt && !hasImage) {
+      await handleRecoveryResponse(textContent, lastMessage.recoveryHint);
+      return;
+    }
+
+    // P7: Handle resolution judgment when awaiting
+    if (awaitingResolution && !hasImage) {
+      setIsLoading(true);
+
+      // Show user message first
+      const userMessage = {
+        role: 'user',
+        content: textContent,
+        timestamp: new Date().toISOString(),
+      };
+      const messagesWithUser = [...messages, userMessage];
+      setMessages(messagesWithUser);
+      setInputText('');
+
+      try {
+        const isResetScenario = currentMode === 'debug_reset_phase1' ||
+                                executionPayload?.type === 'reset';
+        const keptCount = selectedUpgrades?.length || 0;
+        const previousCount = successfulUpgrades?.length || 0;
+
+        // Build resolution judge prompt
+        const systemPrompt = buildResolutionJudgePrompt(
+          isResetScenario, keptCount, previousCount, language
+        );
+
+        // Use callAgentDirect (skip precheck for simple judgment)
+        const response = await callAgentDirect({
+          systemPrompt,
+          messages: [{ role: 'user', content: textContent }],
+          maxTokens: 200,
+        });
+
+        // Build agent reply message
+        const agentMessage = {
+          role: 'assistant',
+          content: response.response,
+          timestamp: new Date().toISOString(),
+          isIterationPrompt: response.isIterationPrompt || false,
+          isRecoveryPrompt: response.isRecoveryPrompt || false,
+          recoveryHint: isResetScenario ? buildResolutionJudgePrompt(
+            true, keptCount, previousCount, language
+          ).match(/Recovery hint.*?"([^"]+)"/)?.[1] : null,
+        };
+
+        const finalMessages = [...messagesWithUser, agentMessage];
+        setMessages(finalMessages);
+        await updateChatHistory(activeChatId, finalMessages);
+
+        // Handle based on resolved state
+        if (response.resolved === true) {
+          // Fixed: write resolved=true
+          await supabase.from('debug_sessions').update({
+            resolved: true,
+            resolved_at: new Date().toISOString(),
+          }).eq('id', activeChatId);
+
+          setAwaitingResolution(false);
+          await loadChatList();
+
+        } else if (response.resolved === false) {
+          // Not fixed: continue debugging
+          setAwaitingResolution(false);
+
+        } else {
+          // null: unclear, keep awaitingResolution=true
+          // Agent already asked again
+        }
+
+      } catch (error) {
+        console.error('[DebugChat] Resolution judge error:', error);
+        setAwaitingResolution(false);  // Fallback on error
+      } finally {
+        setIsLoading(false);
+      }
+
+      return;
+    }
 
     console.log('[DebugChat] handleSend:', {
       currentMode,
@@ -1058,7 +1158,7 @@ export default function DebugChat({
       console.error('Debug agent error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Something went wrong. Please try again.',
+        content: t('debug.somethingWrong'),
         timestamp: new Date().toISOString(),
       }]);
     } finally {
@@ -1161,7 +1261,7 @@ export default function DebugChat({
     // 在对话里显示提示
     const goMessage = {
       role: 'assistant',
-      content: 'Great! Go to Claude and generate your game. Come back and tell me if it worked!',
+      content: t('debug.goToClaude'),
       timestamp: new Date().toISOString(),
     };
     const finalMessages = [...messages, goMessage];
@@ -1190,16 +1290,108 @@ export default function DebugChat({
     const verifyMessage = {
       role: 'assistant',
       content: executionPayload?.type === 'reset'
-        ? 'Welcome back! Is your new game running?'
-        : 'Welcome back! Did the fix work? Is your game working now?',
+        ? t('debug.welcomeBackReset')
+        : t('debug.welcomeBack'),
       timestamp: new Date().toISOString(),
+      isVerificationAsk: true,  // Mark for resolution tracking
     };
 
     const finalMessages = [...messages, verifyMessage];
     setMessages(finalMessages);
     await updateChatHistory(activeChatId, finalMessages);
 
+    // P7: Set awaiting resolution state
+    setAwaitingResolution(true);
     setPendingVerification(null);
+  };
+
+  // =====================================================
+  // P7: Iteration/Recovery handlers
+  // =====================================================
+
+  const handleIterationResponse = async (idea) => {
+    // Save iteration idea to timeline
+    await writeEvent(studentId, sessionId, {
+      type: 'iteration_idea',
+      role: 'student',
+      content: idea,
+      metadata: {
+        debug_session_id: activeChatId,
+        triggered_by: 'post_debug_iteration',
+      },
+    });
+
+    // Show closing message
+    const userMsg = {
+      role: 'user',
+      content: idea,
+      timestamp: new Date().toISOString(),
+    };
+    const closeMsg = {
+      role: 'assistant',
+      content: t('debug.iterationResponse', { idea: idea.slice(0, 50) }),
+      timestamp: new Date().toISOString(),
+    };
+
+    const finalMessages = [...messages, userMsg, closeMsg];
+    setMessages(finalMessages);
+    await updateChatHistory(activeChatId, finalMessages);
+    setInputText('');
+  };
+
+  const handleRecoveryResponse = async (insight, recoveryHint) => {
+    // Check for "don't know" responses
+    const isDontKnow = /don't know|不知道|no idea|idk|没想法|dunno/i.test(insight);
+
+    if (isDontKnow && recoveryHint) {
+      // Give hint and ask again
+      const userMsg = {
+        role: 'user',
+        content: insight,
+        timestamp: new Date().toISOString(),
+      };
+      const hintMsg = {
+        role: 'assistant',
+        content: recoveryHint,
+        timestamp: new Date().toISOString(),
+        isRecoveryPrompt: true,  // Keep the flag but remove hint for next round
+      };
+
+      const finalMessages = [...messages, userMsg, hintMsg];
+      setMessages(finalMessages);
+      await updateChatHistory(activeChatId, finalMessages);
+      setInputText('');
+      return;
+    }
+
+    // Save recovery insight to timeline
+    await writeEvent(studentId, sessionId, {
+      type: 'recovery_insight',
+      role: 'student',
+      content: insight,
+      metadata: {
+        debug_session_id: activeChatId,
+        kept_count: selectedUpgrades?.length || 0,
+        total_count: successfulUpgrades?.length || 0,
+      },
+    });
+
+    // Show closing message
+    const userMsg = {
+      role: 'user',
+      content: insight,
+      timestamp: new Date().toISOString(),
+    };
+    const closeMsg = {
+      role: 'assistant',
+      content: t('debug.recoveryResponse'),
+      timestamp: new Date().toISOString(),
+    };
+
+    const finalMessages = [...messages, userMsg, closeMsg];
+    setMessages(finalMessages);
+    await updateChatHistory(activeChatId, finalMessages);
+    setInputText('');
   };
 
   // =====================================================
@@ -1214,6 +1406,7 @@ export default function DebugChat({
         activeChatId={activeChatId}
         onSelectChat={setActiveChatId}
         onNewChat={handleNewChat}
+        t={t}
       />
 
       {/* 右边：当前对话 */}
@@ -1235,6 +1428,7 @@ export default function DebugChat({
         onImageSelect={handleImageSelect}
         onRemoveImage={handleRemoveImage}
         imageInputRef={imageInputRef}
+        t={t}
       />
     </div>
   );

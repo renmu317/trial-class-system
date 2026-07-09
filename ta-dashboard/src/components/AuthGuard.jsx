@@ -13,7 +13,7 @@ export default function AuthGuard({ children }) {
     let mounted = true
     let profileFetched = false
 
-    // Fetch TA profile for a user with timeout using direct fetch
+    // Fetch TA profile for a user - simple direct fetch
     const fetchProfile = async (userId) => {
       if (profileFetched) return // Prevent duplicate fetches
       profileFetched = true
@@ -21,26 +21,17 @@ export default function AuthGuard({ children }) {
       console.log('AuthGuard: fetching profile for', userId)
 
       try {
-        // Use AbortController for reliable timeout
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000)
-
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
-
-        // Direct fetch to Supabase REST API
+        // Simple fetch with anon key (RLS is disabled on ta_profiles)
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/ta_profiles?id=eq.${userId}&select=id,name,email,role,organization_id,is_active`,
           {
             headers: {
               'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            },
-            signal: controller.signal
+            }
           }
         )
 
-        clearTimeout(timeoutId)
+        console.log('AuthGuard: fetch response', response.status)
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
@@ -60,11 +51,7 @@ export default function AuthGuard({ children }) {
       } catch (err) {
         console.error('Fetch profile error:', err)
         if (mounted) {
-          if (err.name === 'AbortError') {
-            setError('Profile fetch timed out. Please refresh.')
-          } else {
-            setError(err.message)
-          }
+          setError(err.message)
           setLoading(false)
         }
       }

@@ -10,7 +10,7 @@ import { X, Mail, MessageSquare, Copy, Check, ExternalLink, Loader2, Eye, EyeOff
 import { supabase } from '../lib/supabase'
 import { generateFollowUp, calculateDiscountTier, getDiscountDisplay } from '../lib/reportPrompt'
 
-const STUDENT_APP_URL = import.meta.env.VITE_STUDENT_APP_URL || 'http://localhost:5173'
+const STUDENT_APP_URL = import.meta.env.VITE_STUDENT_APP_URL || 'https://trial-class-system.vercel.app'
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY
 
 export default function ReportReviewPanel({ report, onClose, onUpdate }) {
@@ -50,23 +50,38 @@ export default function ReportReviewPanel({ report, onClose, onUpdate }) {
   const discountTier = report?.created_at ? calculateDiscountTier(report.created_at) : 'none'
   const discountDisplay = report?.created_at ? getDiscountDisplay(discountTier, report.created_at) : null
 
-  // Fetch conversion signals for this student
+  // Student data with publish_link
+  const [student, setStudent] = useState(null)
+
+  // Fetch student data and conversion signals
   useEffect(() => {
     if (!report?.student_id) return
 
-    const fetchConversionData = async () => {
-      const { data } = await supabase
+    const fetchData = async () => {
+      // Fetch student with publish_link
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('id, name, publish_link')
+        .eq('id', report.student_id)
+        .single()
+
+      if (studentData) {
+        setStudent(studentData)
+      }
+
+      // Fetch conversion signals
+      const { data: convData } = await supabase
         .from('conversion_signals')
         .select('sale_intent_tier')
         .eq('student_id', report.student_id)
         .single()
 
-      if (data) {
-        setConversionData(data)
+      if (convData) {
+        setConversionData(convData)
       }
     }
 
-    fetchConversionData()
+    fetchData()
   }, [report?.student_id])
 
   // Refresh behavior data from reports table
@@ -212,18 +227,29 @@ export default function ReportReviewPanel({ report, onClose, onUpdate }) {
   // Send report via email
   const handleSendReportEmail = () => {
     const subject = encodeURIComponent(`${report.student_name}'s Trial Class Report`)
-    const body = encodeURIComponent(
-      `Hi,\n\nHere is ${report.student_name}'s trial class report:\n\n${shareUrl}\n\nBest regards,\nAI Creative Class`
-    )
+    let bodyText = `Hi,\n\nHere is ${report.student_name}'s trial class report:\n\n${shareUrl}`
+
+    // Include game link if available
+    if (student?.publish_link) {
+      bodyText += `\n\nPlay ${report.student_name}'s game:\n${student.publish_link}`
+    }
+
+    bodyText += `\n\nBest regards,\nAI Creative Class`
+    const body = encodeURIComponent(bodyText)
     window.open(`mailto:?subject=${subject}&body=${body}`)
     markReportSent()
   }
 
   // Send report via SMS
   const handleSendReportSMS = () => {
-    const body = encodeURIComponent(
-      `${report.student_name}'s AI Creative Class trial report: ${shareUrl}`
-    )
+    let bodyText = `${report.student_name}'s AI Creative Class trial report: ${shareUrl}`
+
+    // Include game link if available
+    if (student?.publish_link) {
+      bodyText += `\n\nPlay the game: ${student.publish_link}`
+    }
+
+    const body = encodeURIComponent(bodyText)
     window.open(`sms:?body=${body}`)
     markReportSent()
   }
@@ -378,34 +404,76 @@ export default function ReportReviewPanel({ report, onClose, onUpdate }) {
                 </div>
               </div>
 
-              {/* Share Link */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <label className="text-xs text-gray-500 mb-2 block">Share Link</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={shareUrl}
-                    readOnly
-                    className="flex-1 px-3 py-2 bg-white border rounded-lg text-sm text-gray-600"
-                  />
-                  <button
-                    onClick={handleCopyLink}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                    }`}
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
-                  <a
-                    href={shareUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium text-gray-700"
-                  >
-                    <ExternalLink size={16} />
-                    Preview
-                  </a>
+              {/* Share Links */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg space-y-4">
+                {/* Game Link (from student's publish_link) */}
+                {student?.publish_link && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-2 block flex items-center gap-1">
+                      <span className="text-lg">🎮</span> Game Link
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={student.publish_link}
+                        readOnly
+                        className="flex-1 px-3 py-2 bg-white border rounded-lg text-sm text-gray-600"
+                      />
+                      <button
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(student.publish_link)
+                          setCopied(true)
+                          setTimeout(() => setCopied(false), 2000)
+                        }}
+                        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                        }`}
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                      <a
+                        href={student.publish_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium text-white"
+                      >
+                        <ExternalLink size={16} />
+                        Play
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Report Link */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block">Report Link</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={shareUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2 bg-white border rounded-lg text-sm text-gray-600"
+                    />
+                    <button
+                      onClick={handleCopyLink}
+                      className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                      }`}
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <a
+                      href={`${shareUrl}?t=${Date.now()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium text-gray-700"
+                    >
+                      <ExternalLink size={16} />
+                      Preview
+                    </a>
+                  </div>
                 </div>
               </div>
             </>

@@ -10,6 +10,7 @@ import { useT } from './i18n';
 
 import NameInput from './components/NameInput';
 import CodeInput from './components/CodeInput';
+import StudentLogin from './components/StudentLogin';
 import GameNameBadge from './components/GameNameBadge';
 import DesignCard from './components/DesignCard';
 import PromptGenerator from './components/PromptGenerator';
@@ -19,6 +20,8 @@ import Button from './components/Button';
 import AgentPanel from './components/AgentPanel';
 import RuleDesign from './components/RuleDesign';
 import DebugChat from './components/DebugChat';
+import ShareGame from './components/ShareGame';
+import ValidationCheck from './components/ValidationCheck';
 
 // Phase 2: 错误页面
 function ErrorScreen({ title, message }) {
@@ -34,10 +37,10 @@ function ErrorScreen({ title, message }) {
 }
 
 // Phase 2: Session 结束 banner
-function SessionEndedBanner() {
+function SessionEndedBanner({ message }) {
   return (
     <div className="bg-amber-100 border-b-2 border-amber-200 px-4 py-2 text-center text-sm font-bold text-amber-800">
-      ⚠️ Class ended. You can still play, but progress won't be saved.
+      ⚠️ {message}
     </div>
   );
 }
@@ -79,6 +82,7 @@ function AppContent() {
   const [needsCode, setNeedsCode] = useState(false);  // 显示短码输入页
   const [codeError, setCodeError] = useState(null);   // 短码错误信息
   const [returningStudentDialog, setReturningStudentDialog] = useState(null); // 同名学生确认弹窗
+  const [showNewLogin, setShowNewLogin] = useState(false); // 新登录流程
 
   // Phase 1: App 状态
   const [tab, setTab] = useState("design");
@@ -110,6 +114,13 @@ function AppContent() {
   // { type, debugSessionId } = Debug 执行后等待验证
   const [pendingVerification, setPendingVerification] = useState(null);
 
+  // ShareGame 状态：课程结束时显示分享游戏链接卡片
+  const [shareGameCompleted, setShareGameCompleted] = useState(false);
+
+  // P7: Prediction/Validation 状态
+  const [pendingValidation, setPendingValidation] = useState(null);
+  const [showValidation, setShowValidation] = useState(false);
+
   // Phase 2: 初始化 session
   useEffect(() => {
     const initSession = async () => {
@@ -118,8 +129,8 @@ function AppContent() {
       const codeParam = params.get('code');        // New: 4-digit code
 
       if (!sessionParam && !codeParam) {
-        // 没有参数，显示短码输入页
-        setNeedsCode(true);
+        // 没有参数，显示新登录流程
+        setShowNewLogin(true);
         setLoading(false);
         return;
       }
@@ -293,6 +304,35 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [sessionId]);
 
+  // ShareGame 完成回调
+  const handleShareGameDone = () => {
+    setShareGameCompleted(true);
+  };
+
+  // P7: Prediction 回调（从 Upgrade 组件传上来）
+  const handlePredictionMade = (prediction, upgradeId, upgradeLabel) => {
+    if (prediction) {
+      setPendingValidation({ prediction, upgradeId, upgradeLabel });
+    }
+  };
+
+  // P7: Validation 完成回调
+  const handleValidationDone = (matched) => {
+    setShowValidation(false);
+    setPendingValidation(null);
+  };
+
+  // P7: Prompt Tab 重访时触发验证
+  useEffect(() => {
+    if (tab === 'prompt' && pendingValidation && !showValidation) {
+      // Delay slightly to let tab render first
+      const timer = setTimeout(() => {
+        setShowValidation(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [tab, pendingValidation, showValidation]);
+
   // Phase 2: 学生名字提交（含去重检测）
   const handleNameSubmit = async (name) => {
     const trimmedName = name.trim();
@@ -395,10 +435,84 @@ function AppContent() {
     setStudentName(name);
   };
 
-  // 短码提交处理
+  // 新登录流程回调
+  const handleNewLogin = (loginData) => {
+    const { sessionId, sessionName, studentId, studentName, gameName, lessonType } = loginData;
+
+    // 设置 session 和 student 状态
+    setSessionId(sessionId);
+    setSessionName(sessionName);
+    setStudentId(studentId);
+    setStudentName(studentName);
+    if (gameName) setGameName(gameName);
+
+    // 设置课程类型
+    setLessonType(lessonType || 'lesson1');
+    console.log('New login - lesson:', lessonType);
+
+    // 保存到 localStorage
+    localStorage.setItem('student_id', studentId);
+    localStorage.setItem('session_id', sessionId);
+
+    // 关闭登录页
+    setShowNewLogin(false);
+    setSessionStatus('active');
+  };
+
+  // 短码提交处理 (支持 4 位 session code 和 6 位 student shortcode)
   const handleCodeSubmit = async (code) => {
     setCodeError(null);
 
+    // 6 位 = student shortcode，通过 Edge Function 处理
+    if (code.length === 6) {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-shortcode`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ shortcode: code })
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+          setCodeError(result.error || 'Invalid shortcode');
+          return;
+        }
+
+        // 成功 - 自动登录学生
+        const lessonKey = result.lesson_type || 'lesson1';
+        setLessonType(lessonKey);
+        console.log('Shortcode login - lesson:', lessonKey);
+
+        setSessionId(result.session_id);
+        setSessionName(result.session_name);
+        setSessionStatus(result.session_status);
+
+        // 直接设置学生信息（跳过名字输入）
+        setStudentId(result.student_id);
+        setStudentName(result.student_name);
+        if (result.game_name) setGameName(result.game_name);
+
+        // 保存到 localStorage
+        localStorage.setItem('student_id', result.student_id);
+        localStorage.setItem('session_id', result.session_id);
+
+        setNeedsCode(false);
+        return;
+      } catch (err) {
+        console.error('Shortcode verification failed:', err);
+        setCodeError('Connection error. Please try again.');
+        return;
+      }
+    }
+
+    // 4 位 = session join code
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('id, name, status, lesson_type')
@@ -534,13 +648,18 @@ function AppContent() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">🎮</div>
-          <p className="text-slate-500 font-bold">Loading...</p>
+          <p className="text-slate-500 font-bold">{t('common.loading')}</p>
         </div>
       </div>
     );
   }
 
-  // 需要输入短码
+  // 新登录流程
+  if (showNewLogin) {
+    return <StudentLogin onLogin={handleNewLogin} />;
+  }
+
+  // 需要输入短码 (legacy fallback)
   if (needsCode) {
     return <CodeInput onSubmit={handleCodeSubmit} error={codeError} />;
   }
@@ -566,23 +685,23 @@ function AppContent() {
             <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-xl">
               <div className="text-4xl text-center mb-3">👋</div>
               <h2 className="text-xl font-bold text-center mb-2">
-                Welcome back, {returningStudentDialog.studentName}!
+                {t('returning.welcomeBack', { name: returningStudentDialog.studentName })}
               </h2>
               <p className="text-slate-500 text-sm text-center mb-6">
-                We found your game from earlier. Is this you?
+                {t('returning.foundGame')}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={returningStudentDialog.onConfirm}
                   className="flex-1 bg-green-500 text-white rounded-xl py-3 font-bold text-sm hover:bg-green-600"
                 >
-                  ✓ Yes, that's me
+                  ✓ {t('returning.yesItsMe')}
                 </button>
                 <button
                   onClick={returningStudentDialog.onDeny}
                   className="flex-1 bg-slate-200 text-slate-700 rounded-xl py-3 font-bold text-sm hover:bg-slate-300"
                 >
-                  No, different person
+                  {t('returning.noDifferent')}
                 </button>
               </div>
             </div>
@@ -605,7 +724,7 @@ function AppContent() {
       }}
     >
       {/* Phase 2: Session 结束 banner */}
-      {sessionStatus === 'ended' && <SessionEndedBanner />}
+      {sessionStatus === 'ended' && <SessionEndedBanner message={t('session.endedBanner')} />}
 
       {/* Phase 1: Header */}
       <header className="border-b-2 border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
@@ -621,6 +740,18 @@ function AppContent() {
           <LanguageToggle />
         </div>
       </header>
+
+      {/* 课程结束时显示 ShareGame（固定在页面顶部） */}
+      {sessionStatus === 'ended' && !shareGameCompleted && studentId && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <ShareGame
+            studentId={studentId}
+            sessionId={sessionId}
+            onDone={handleShareGameDone}
+            inline={true}
+          />
+        </div>
+      )}
 
       {/* Phase 1: Main content */}
       <main className="px-4 py-6 sm:py-10 pb-28">
@@ -665,9 +796,9 @@ function AppContent() {
           ) : (
             <div className="max-w-2xl mx-auto text-center py-12">
               <div className="text-4xl mb-3">👈</div>
-              <p className="text-slate-600 mb-4">Finish building first!</p>
+              <p className="text-slate-600 mb-4">{t('design.finishFirst')}</p>
               <Button onClick={() => handleTabChange("design")} variant="primary">
-                Go to Build
+                {t('design.goToBuild')}
               </Button>
             </div>
           )
@@ -697,6 +828,9 @@ function AppContent() {
             upgradeDrafts={upgradeDrafts}
             dynamicUpgradeConfig={dynamicUpgradeConfig}
             lessonConfig={lessonConfig}
+            studentId={studentId}
+            sessionId={sessionId}
+            onPredictionMade={handlePredictionMade}
           />
         )}
       </main>
@@ -730,6 +864,17 @@ function AppContent() {
         {...agentPanelProps}
         onClose={handleCloseAgentPanel}
         onGate1Complete={handleGate1Complete}
+      />
+    )}
+
+    {/* P7: ValidationCheck 弹窗 */}
+    {showValidation && pendingValidation && (
+      <ValidationCheck
+        studentId={studentId}
+        sessionId={sessionId}
+        upgradeId={pendingValidation.upgradeId}
+        prediction={pendingValidation.prediction}
+        onDone={handleValidationDone}
       />
     )}
     </>

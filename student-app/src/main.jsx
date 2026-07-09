@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import ReportPage from './pages/ReportPage.jsx'
+import EnrollPage from './pages/EnrollPage.jsx'
 
 // Wrapper to extract token param
 function ReportPageWrapper() {
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <Routes>
         <Route path="/report/:token" element={<ReportPageWrapper />} />
+        <Route path="/enroll/:token" element={<EnrollPage />} />
         <Route path="*" element={<App />} />
       </Routes>
     </BrowserRouter>

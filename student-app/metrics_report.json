@@ -1,0 +1,161 @@
+{
+  "report_metadata": {
+    "generated_at": "2026-06-19",
+    "data_range": {
+      "start": "2026-05-23",
+      "end": "2026-06-14"
+    },
+    "platform": "Education OS - Trial Class System",
+    "database": "Supabase PostgreSQL"
+  },
+  "user_metrics": {
+    "organizations": {
+      "total": 2,
+      "breakdown": [
+        {
+          "name": "Emmerse Education",
+          "students": 63,
+          "percentage": 61.2
+        },
+        {
+          "name": "AI Creative Class",
+          "students": 40,
+          "percentage": 38.8
+        }
+      ]
+    },
+    "teaching_assistants": 3,
+    "sessions": {
+      "total": 28,
+      "lesson_types": {
+        "lesson1": 24,
+        "lesson2": 4
+      }
+    },
+    "students": {
+      "total_records": 103,
+      "unique_names": 72,
+      "enrollments": 33
+    }
+  },
+  "engagement_metrics": {
+    "students_per_session": 4.29,
+    "events_per_student": 11.99,
+    "agent_sessions_per_student": 1.42,
+    "reports_per_session": 0.57,
+    "active_days": 10,
+    "estimated_learning_hours": 39.77
+  },
+  "ai_agent_metrics": {
+    "agent_sessions": {
+      "total": 146,
+      "conversation_rounds": 217,
+      "average_rounds_per_session": 1.49
+    },
+    "early_releases": {
+      "count": 81,
+      "percentage": 55.5
+    },
+    "gate1_completions": {
+      "count": 94,
+      "percentage": 64.4
+    }
+  },
+  "content_metrics": {
+    "student_events": 1235,
+    "publish_links": 4,
+    "parent_reports": 16,
+    "debug_sessions": {
+      "total": 26,
+      "resolved": 1,
+      "unresolved": 25,
+      "resolution_rate": 3.8
+    }
+  },
+  "timeline_activity": {
+    "first_session": "2026-05-23",
+    "latest_session": "2026-06-14",
+    "total_events": 1235,
+    "event_types_tracked": [
+      "build_complete",
+      "prompt_generated",
+      "prompt_copied",
+      "gate1_round",
+      "gate1_complete",
+      "gate2_verify",
+      "debug_message",
+      "debug_complete",
+      "game_regenerated",
+      "prediction_made",
+      "prediction_validated",
+      "validation_reflection",
+      "iteration_idea",
+      "recovery_insight",
+      "identity_reflection"
+    ]
+  },
+  "p7_cognitive_metrics": {
+    "status": "not_deployed_to_production",
+    "prediction_events": 0,
+    "validation_events": 0,
+    "reflection_events": 0,
+    "iteration_events": 0,
+    "recovery_events": 0,
+    "identity_events": 0
+  },
+  "database_schema": {
+    "core_tables": [
+      "sessions",
+      "students",
+      "session_timeline",
+      "agent_sessions",
+      "debug_sessions",
+      "reports"
+    ],
+    "signal_tables": [
+      "student_signals",
+      "conversion_signals"
+    ],
+    "enrollment_tables": [
+      "student_enrollments",
+      "enrollment_batches"
+    ],
+    "auth_tables": [
+      "organizations",
+      "ta_profiles"
+    ],
+    "total_tables": 11
+  },
+  "technical_stack": {
+    "database": "PostgreSQL (Supabase)",
+    "frontend": "React + Vite",
+    "ai_provider": "Anthropic Claude API",
+    "real_time": "Supabase Realtime",
+    "auth": "Supabase Auth",
+    "hosting": "Vercel (assumed)"
+  },
+  "resume_metrics": {
+    "headline_stats": {
+      "organizations_served": 2,
+      "total_students": 103,
+      "total_sessions": 28,
+      "pilot_duration_weeks": 3
+    },
+    "engagement_stats": {
+      "avg_class_size": 4.29,
+      "events_per_student": 11.99,
+      "ai_conversations": 146,
+      "learning_hours": 40
+    },
+    "ai_performance": {
+      "early_release_rate": "55.5%",
+      "checkpoint_completion_rate": "64.4%",
+      "parent_reports_generated": 16
+    },
+    "data_processed": {
+      "total_events": 1235,
+      "conversation_rounds": 217,
+      "debug_sessions": 26
+    }
+  }
+}

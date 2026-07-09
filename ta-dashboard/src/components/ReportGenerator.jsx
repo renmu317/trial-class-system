@@ -8,7 +8,12 @@
 import { useState } from 'react'
 import { FileText, Loader2, Check, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { generateReport, validateReportData } from '../lib/reportPrompt'
+import {
+  generateReport,
+  validateReportData,
+  getCognitiveBehaviorData,
+  buildCognitiveBehaviorSection
+} from '../lib/reportPrompt'
 
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY
 
@@ -55,14 +60,19 @@ export default function ReportGenerator({ student, signals, sessionId, onReportG
         throw new Error('Invalid report data structure from AI')
       }
 
-      // 5. Save to reports table
+      // 5. Fetch cognitive behavior data (P7)
+      const cognitiveData = await getCognitiveBehaviorData(student.id, sessionId)
+      const cognitiveSectionZh = buildCognitiveBehaviorSection(cognitiveData, student.name, 'zh')
+      const cognitiveSectionEn = buildCognitiveBehaviorSection(cognitiveData, student.name, 'en')
+
+      // 6. Save to reports table (with cognitive sections appended)
       const { data: savedReport, error: saveError } = await supabase
         .from('reports')
         .insert({
           session_id: sessionId,
           student_id: student.id,
-          content_zh: reportData.narrative_zh,
-          content_en: reportData.narrative_en,
+          content_zh: reportData.narrative_zh + cognitiveSectionZh,
+          content_en: reportData.narrative_en + cognitiveSectionEn,
           pathway_zh: reportData.pathway_zh,
           pathway_en: reportData.pathway_en,
           cta_tier: reportData.cta_tier

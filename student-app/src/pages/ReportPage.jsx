@@ -46,7 +46,7 @@ export default function ReportPage({ token }) {
 
       const { data: reportData, error: reportError } = await supabase
         .from('reports')
-        .select('*, students(name)')
+        .select('*, students(name, publish_link)')
         .eq('share_token', token)
         .single()
 
@@ -227,6 +227,29 @@ export default function ReportPage({ token }) {
               </p>
             </div>
           </div>
+
+          {/* Game Link - Inside Report Card */}
+          {student?.publish_link && (
+            <a
+              href={student.publish_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block bg-gradient-to-r from-orange-400 to-pink-500 rounded-xl p-4 mb-4 text-white hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">🕹️</div>
+                <div className="flex-1">
+                  <p className="font-bold">
+                    {lang === 'en' ? `Play ${student.name}'s Game` : `试玩 ${student.name} 的游戏`}
+                  </p>
+                  <p className="text-orange-100 text-xs">
+                    {lang === 'en' ? 'Click to play' : '点击试玩'}
+                  </p>
+                </div>
+                <div className="text-xl">→</div>
+              </div>
+            </a>
+          )}
 
           {/* Report Content */}
           <div className="prose prose-slate max-w-none">
