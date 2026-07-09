@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>V17 Agent 嵌入方案 — 完整规格</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede8;color:#1a1a1a;}
+.page{width:8.5in;min-height:11in;background:#fff;margin:.35in auto;padding:.55in .65in;page-break-after:always;box-shadow:0 4px 24px rgba(0,0,0,.10);position:relative;}
+.page:last-child{page-break-after:avoid;}
+h1{font-family:'Syne',sans-serif;font-size:23px;font-weight:800;letter-spacing:-.3px;line-height:1.15;margin-bottom:3px;}
+h2{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:.2px;text-transform:uppercase;margin-top:18px;margin-bottom:8px;color:#111;}
+h3{font-size:11.5px;font-weight:700;margin-bottom:5px;color:#1a1a1a;}
+.sub{font-size:11.5px;color:#888;font-weight:400;}
+p{font-size:11.5px;line-height:1.7;color:#333;}
+.div{height:1px;background:#e8e4df;margin:14px 0;}
+.page-label{position:absolute;top:18px;right:22px;font-family:'DM Mono',monospace;font-size:9px;color:#ccc;letter-spacing:.1em;text-transform:uppercase;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+
+/* CARDS */
+.card{background:#f9f7f4;border:1px solid #e8e3dd;border-radius:8px;padding:11px 13px;}
+.card-ink{background:#1a1a1a;color:#fff;border-radius:8px;padding:13px 15px;}
+.card-amber{background:#fff8e6;border:1px solid #e8c84a;border-radius:8px;padding:11px 13px;}
+.card-sage{background:#edf5f0;border:1px solid #86c9a0;border-radius:8px;padding:11px 13px;}
+.card-rose{background:#fff0f0;border:1px solid #f0a0a0;border-radius:8px;padding:11px 13px;}
+.card-v17{background:#e8e8ff;border:1px solid #4a4a8a;border-radius:8px;padding:11px 13px;}
+.card-blue{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:11px 13px;}
+
+/* TAGS */
+.tag{display:inline-block;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;}
+.t-ink{background:#1a1a1a;color:#ffe84a;}
+.t-amber{background:#fff0b0;color:#8a5800;}
+.t-sage{background:#d8f0e2;color:#1a6640;}
+.t-rose{background:#ffe0e0;color:#990000;}
+.t-v17{background:#4a4a8a;color:#c8c8ff;}
+.t-blue{background:#dbeafe;color:#1e40af;}
+.t-gray{background:#ebebeb;color:#555;}
+.t-red{background:#ff4444;color:#fff;}
+
+/* CALLOUT BOXES */
+.v17box{background:#e8e8ff;border-left:3px solid #4a4a8a;padding:7px 10px;font-size:11px;color:#1a1a4a;line-height:1.6;margin-top:6px;border-radius:0 5px 5px 0;}
+.sagetip{background:#edf5f0;border-left:3px solid #16a34a;padding:7px 10px;font-size:11px;color:#154b2a;line-height:1.6;margin-top:6px;border-radius:0 5px 5px 0;}
+.amberbox{background:#fff8e6;border-left:3px solid #f5a623;padding:7px 10px;font-size:11px;color:#7a4800;line-height:1.6;margin-top:6px;border-radius:0 5px 5px 0;}
+.redbox{background:#fff0f0;border-left:3px solid #cc3333;padding:7px 10px;font-size:11px;color:#660000;line-height:1.6;margin-top:6px;border-radius:0 5px 5px 0;}
+.inkbox{background:#f9f7f4;border-left:3px solid #1a1a1a;padding:7px 10px;font-size:11px;color:#333;line-height:1.6;margin-top:6px;border-radius:0 5px 5px 0;}
+
+/* SQL / CODE */
+.sql{background:#1a1a2e;border-radius:8px;padding:12px 14px;font-family:'DM Mono',monospace;font-size:9.5px;color:#c8c8ff;line-height:1.85;margin-top:6px;}
+.sql .kw{color:#ffe84a;}
+.sql .cm{color:#4a4a7a;}
+.sql .str{color:#86c9a0;}
+.sql .fn{color:#f0a070;}
+
+/* TABLES */
+.rtable{width:100%;border-collapse:collapse;font-size:10px;margin-top:6px;}
+.rtable th{background:#1a1a2e;color:#c8c8ff;padding:6px 9px;text-align:left;font-weight:600;font-size:9.5px;font-family:'DM Mono',monospace;letter-spacing:.04em;}
+.rtable td{padding:6px 9px;border-bottom:1px solid #eeebe6;vertical-align:top;line-height:1.55;}
+.rtable tr:last-child td{border-bottom:none;}
+.rtable tbody tr:nth-child(even) td{background:#faf9f7;}
+.rtable tbody tr:nth-child(odd) td{background:#fff;}
+
+/* DECISION TREE */
+.dtree{font-family:'DM Mono',monospace;font-size:10px;line-height:2;background:#f9f7f4;border:1px solid #e8e3dd;border-radius:8px;padding:10px 14px;margin-top:6px;}
+.dtree .node{color:#1a1a4a;font-weight:700;}
+.dtree .branch{color:#4a4a8a;}
+.dtree .green{color:#1a6640;font-weight:700;}
+.dtree .amber{color:#8a5800;font-weight:700;}
+.dtree .red{color:#990000;font-weight:700;}
+.dtree .i1{padding-left:18px;}
+.dtree .i2{padding-left:36px;}
+.dtree .i3{padding-left:54px;}
+.dtree .i4{padding-left:72px;}
+
+/* TIMELINE */
+.tl-row{display:flex;gap:0;}
+.tl-time{width:52px;min-width:52px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#bbb;padding:10px 8px 10px 0;text-align:right;flex-shrink:0;line-height:1.2;}
+.tl-spine{width:2px;background:#e8e3dd;flex-shrink:0;position:relative;}
+.tl-dot{width:9px;height:9px;border-radius:50%;position:absolute;left:-3.5px;top:13px;}
+.tl-body{flex:1;padding:6px 0 12px 12px;}
+.tl-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;margin-bottom:2px;}
+.tl-desc{font-size:11px;color:#555;line-height:1.6;}
+
+/* RISK ROW */
+.risk-row{display:grid;grid-template-columns:60px 80px 1fr;border:1px solid #e0dbd4;border-radius:6px;overflow:hidden;margin-bottom:5px;}
+.risk-id{padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border-right:1px solid #e0dbd4;}
+.risk-sev{padding:8px 10px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border-right:1px solid #e0dbd4;}
+.risk-desc{padding:8px 10px;font-size:10.5px;color:#333;background:#fff;line-height:1.5;}
+
+/* INTEGRATION POINT */
+.ipoint{border:1px solid #e0dbd4;border-radius:8px;overflow:hidden;margin-bottom:8px;}
+.ipoint-header{display:grid;grid-template-columns:140px 1fr;background:#f9f7f4;border-bottom:1px solid #e0dbd4;}
+.ipoint-file{padding:9px 12px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#4a4a8a;border-right:1px solid #e0dbd4;display:flex;align-items:center;}
+.ipoint-what{padding:9px 12px;font-size:10.5px;color:#333;display:flex;align-items:center;}
+.ipoint-body{padding:9px 12px;background:#fff;font-size:10.5px;color:#444;line-height:1.6;}
+
+/* ARCH LAYER */
+.arch-layer{border:1.5px solid #e8e3dd;border-radius:10px;overflow:hidden;margin-bottom:8px;}
+.arch-header{padding:7px 13px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.arch-body{padding:10px 12px;background:#faf9f7;}
+
+/* MISC */
+.lvl{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:4px;}
+.lvl-p1{background:#ede9ff;color:#5b21b6;}
+.lvl-p2{background:#dbeafe;color:#1e40af;}
+.lvl-p3{background:#d8f0e2;color:#1a6640;}
+.mono{font-family:'DM Mono',monospace;font-size:9.5px;background:#f0ede8;padding:1px 5px;border-radius:3px;color:#333;}
+.v17-badge{display:inline-flex;align-items:center;background:#1a1a2e;color:#c8c8ff;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;padding:3px 9px;border-radius:20px;letter-spacing:.05em;text-transform:uppercase;}
+.spec-badge{display:inline-flex;align-items:center;background:#1a1a1a;color:#ffe84a;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;padding:3px 9px;border-radius:20px;letter-spacing:.05em;text-transform:uppercase;}
+
+@media print{body{background:white;}.page{margin:0;box-shadow:none;}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 1: OVERVIEW + ARCHITECTURE
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">1 / 8 · Integration Spec</div>
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
+  <div>
+    <h1>V17 Agent — 完整嵌入方案</h1>
+    <p class="sub">Trial Class System × V17认知对抗 · 集成架构 · 运行时规格 · 扩展端口 · 实施顺序</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+    <div class="spec-badge">Integration Spec · Final</div>
+    <div class="v17-badge">V17 · Lesson 2 · Cognitive</div>
+  </div>
+</div>
+
+<div class="div"></div>
+
+<!-- SCOPE -->
+<div class="card-ink" style="margin-bottom:12px;">
+  <p style="font-size:12px;font-weight:600;line-height:1.85;color:white;">
+    本文档范围：<span style="color:#ffe84a;">Agent层如何嵌入现有Trial Class System，以及如何对未来20节课保持开放</span>——集成边界、数据流、运行时风险修复、三个扩展端口、实施顺序。<br>
+    <span style="font-size:10.5px;color:#888;font-weight:400;">不包含：Agent教学逻辑详细设计（见V3方案）· System Prompt完整文本 · Lesson 2 lesson.js内容设计</span>
+  </p>
+</div>
+
+<!-- TWO-LAYER ARCHITECTURE -->
+<h2>两层架构：现有系统 + Agent层</h2>
+
+<div class="arch-layer">
+  <div class="arch-header" style="background:#1a1a1a;color:#ffe84a;">现有系统 — Production Layer（零内部改动）</div>
+  <div class="arch-body">
+    <div class="g3">
+      <div class="card">
+        <p style="font-size:10px;font-weight:700;margin-bottom:3px;">Student App · port 5173</p>
+        <p style="font-size:10px;color:#555;line-height:1.5;">Build · Upgrade · Debug · Rule tabs。lesson.js驱动内容。events.js上报行为事件。</p>
+      </div>
+      <div class="card">
+        <p style="font-size:10px;font-weight:700;margin-bottom:3px;">TA Dashboard · port 5174</p>
+        <p style="font-size:10px;color:#555;line-height:1.5;">V17信号监控。DeepSeek报告生成。<span style="color:#4a4a8a;font-weight:600;">新增：session结束时间设置。</span></p>
+      </div>
+      <div class="card">
+        <p style="font-size:10px;font-weight:700;margin-bottom:3px;">Sales App · port 5175</p>
+        <p style="font-size:10px;color:#555;line-height:1.5;">实时转化信号。本次无改动。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arch-layer" style="border-color:#4a4a8a;">
+  <div class="arch-header" style="background:#1a1a2e;color:#c8c8ff;">V17 Agent Layer — 新建，完全独立（住在Student App内）</div>
+  <div class="arch-body" style="background:#f5f5ff;">
+    <div class="g3">
+      <div class="card-v17">
+        <p style="font-size:10px;font-weight:700;color:#1a1a4a;margin-bottom:3px;">AgentBridge.js</p>
+        <p style="font-size:10px;color:#3a3a7a;line-height:1.5;">事件监听器。触发Gate。管理agent_sessions的创建和查询。构建合并agenda。</p>
+      </div>
+      <div class="card-v17">
+        <p style="font-size:10px;font-weight:700;color:#1a1a4a;margin-bottom:3px;">AgentPanel.jsx</p>
+        <p style="font-size:10px;color:#3a3a7a;line-height:1.5;">独立对话UI。Gate 1/2/resume三种模式。动态轮数。生产层overlay控制。</p>
+      </div>
+      <div class="card-v17">
+        <p style="font-size:10px;font-weight:700;color:#1a1a4a;margin-bottom:3px;">DeepSeek API</p>
+        <p style="font-size:10px;color:#3a3a7a;line-height:1.5;">Gate 1 system prompt。Gate 2 system prompt。JSON评分输出。continue字段驱动轮数。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arch-layer" style="border-color:#e8c84a;">
+  <div class="arch-header" style="background:#fff8e6;color:#8a5800;">Supabase — 共享后端（新增表和字段）</div>
+  <div class="arch-body">
+    <div class="g2">
+      <div class="card-amber">
+        <p style="font-size:10px;font-weight:700;margin-bottom:3px;">新增：agent_sessions表</p>
+        <p style="font-size:10px;color:#7a4800;line-height:1.5;">每个Upgrade对话一条记录（1:N）。Gate 1评分。Gate 2验证结果。断点恢复字段。报告素材。</p>
+      </div>
+      <div class="card-amber">
+        <p style="font-size:10px;font-weight:700;margin-bottom:3px;">修改：sessions表</p>
+        <p style="font-size:10px;color:#7a4800;line-height:1.5;">新增 <span class="mono">scheduled_end_at</span> 字段。TA在Dashboard设置。驱动Gate 2的retry/diagnose模式切换。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="div"></div>
+
+<!-- CORE DECOUPLING PRINCIPLE -->
+<h2>解耦原则：时间分离</h2>
+<div class="g2">
+  <div class="card-rose">
+    <div class="tag t-rose">❌ 错误方式</div>
+    <p style="font-size:11px;line-height:1.6;color:#550000;">加一个「认知对抗Tab」——学生不会主动点进去。Tab切换要求主动行为，9-14岁学生的动机是做游戏，认知对抗永远不会发生。</p>
+  </div>
+  <div class="card-sage">
+    <div class="tag t-sage">✅ 正确方式</div>
+    <p style="font-size:11px;line-height:1.6;color:#1a4a2a;">Gate模型——Agent在生产流水线的自然节点自动出现。Agent出现时生产层变暗但不消失（opacity 0.3），学生可以对照自己的内容回答。Agent消失后生产层完全恢复。</p>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 2: SIX INTEGRATION POINTS
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">2 / 8 · Integration Spec</div>
+
+<h2>六个集成点：现有系统 ↔ Agent层</h2>
+<p style="font-size:11px;color:#555;line-height:1.6;margin-bottom:10px;">Agent层和现有系统的接触面只有六处。颜色标注风险等级：amber=设计变更，red=运行时风险，green=低风险加法。</p>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#fff8e6;color:#8a5800;">R1 · AMBER<br>lesson.js</div>
+    <div class="ipoint-what"><span class="tag t-amber" style="margin:0;margin-right:8px;">设计变更</span> 每个Upgrade新增两个Agent专用字段</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>变更内容：</strong><span class="mono">agent_context</span>（Round 1冷启动描述）和 <span class="mono">language_dimensions[]</span>（需要精确化的维度列表）。<br>
+    <strong>风险：</strong>这两个字段的内容质量直接决定Agent追问深度。<span class="mono">language_dimensions</span>写得太泛（如「描述它」）→ Agent无法追到具体维度。必须在P1建立Lesson 2时逐个Upgrade仔细填写。<br>
+    <strong>不影响：</strong>现有 <span class="mono">buildPrompt()</span> 逻辑零改动。<span class="mono">difficulty</span>字段保留但不驱动任何Agent逻辑。
+  </div>
+</div>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#edf5f0;color:#1a6640;">R2 · GREEN<br>Upgrade.jsx</div>
+    <div class="ipoint-what"><span class="tag t-sage" style="margin:0;margin-right:8px;">低风险加法</span> 新增 easy_challenge_opened 事件emit</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>变更内容：</strong><span class="mono">medium_challenge_opened</span> 和 <span class="mono">hard_challenge_opened</span> 已有，只需在Upgrade.jsx里对Easy Upgrade新增一行 <span class="mono">agentBridge.trigger('easy_challenge_opened', upgradeId)</span>。<br>
+    <strong>原则：</strong>V2修正——所有Upgrade无论Easy/Medium/Hard都触发Gate 1，Upgrade难度不再决定是否追问。
+  </div>
+</div>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#edf5f0;color:#1a6640;">R3 · GREEN<br>events.js</div>
+    <div class="ipoint-what"><span class="tag t-sage" style="margin:0;margin-right:8px;">低风险加法</span> prompt_tab_revisited 事件已存在，AgentBridge直接监听</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>变更内容：</strong>events.js无需改动。AgentBridge在初始化时订阅 <span class="mono">prompt_tab_revisited</span>，触发Gate 2逻辑。<br>
+    <strong>注意：</strong>Gate 2只在 <span class="mono">agent_sessions</span> 表有未验证记录时才激活。如果学生没有完成任何Gate 1，返回时不触发。
+  </div>
+</div>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#fff0f0;color:#660000;">R4 · RED<br>agent_sessions</div>
+    <div class="ipoint-what"><span class="tag t-red" style="margin:0;margin-right:8px;">运行时风险</span> Gate 1中断导致半完整记录 → Gate 2误判</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>问题：</strong>Gate 1分多次写入。浏览器关闭或网络断开 → 记录存在但 <span class="mono">upgrade_appeared IS NULL</span>，与「完成但等待验证」的记录无法区分。Gate 2会对半完整记录发起错误验证。<br>
+    <strong>修复：</strong>新增 <span class="mono">gate1_completed boolean DEFAULT false</span>。Gate 1最后一轮写完、<span class="mono">continue:false</span>返回时写入 <span class="mono">true</span>。Gate 2查询条件改为 <span class="mono">gate1_completed = true AND upgrade_appeared IS NULL</span>。<br>
+    <strong>断点恢复：</strong>Gate 2同时查询 <span class="mono">gate1_completed = false</span> 的最近一条记录，与验证任务合并成一次对话（见Page 4详细逻辑）。
+  </div>
+</div>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#fff0f0;color:#660000;">R5 · RED<br>sessions表</div>
+    <div class="ipoint-what"><span class="tag t-red" style="margin:0;margin-right:8px;">运行时风险</span> scheduled_end_at 为 NULL → timeRemaining = NaN → 错误模式</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>问题：</strong>TA未设置结束时间，或使用字段加入前创建的旧session。<span class="mono">timeRemaining</span> 得到NaN，<span class="mono">NaN > 480000</span> 返回false → 所有学生错误进入diagnose模式，即使时间充足。<br>
+    <strong>修复（三层fallback）：</strong>① <span class="mono">scheduled_end_at</span> 有值 → 使用。② 无值 → <span class="mono">created_at + 90分钟</span>。③ 两者都没有 → 假设剩余20分钟（倾向retry）。<br>
+    <strong>原则：</strong>宁可错误进入retry（顶多多花几分钟），不错误进入diagnose（关闭可修复的学习机会）。<br>
+    <strong>TA提示：</strong>Setup.jsx在未设置结束时间时显示警告，不强制。
+  </div>
+</div>
+
+<div class="ipoint">
+  <div class="ipoint-header">
+    <div class="ipoint-file" style="background:#edf5f0;color:#1a6640;">R6 · GREEN<br>reportPrompt.js</div>
+    <div class="ipoint-what"><span class="tag t-sage" style="margin:0;margin-right:8px;">低风险加法</span> 新增 agent_sessions 聚合section</div>
+  </div>
+  <div class="ipoint-body">
+    <strong>变更内容：</strong><span class="mono">buildReportPrompt()</span> 新增 <span class="mono">agentSection</span>，JOIN查询该学生所有 <span class="mono">agent_sessions</span> 记录，聚合后注入报告prompt。<br>
+    <strong>边界情况：</strong>学生零条agent_sessions记录 → agentSection返回空字符串，报告正常生成，不报错。<br>
+    <strong>不影响：</strong>现有V17 student_signals报告逻辑零改动。
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 3: GATE 1 COMPLETE LOGIC
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">3 / 8 · Integration Spec</div>
+
+<h2>Gate 1：完整逻辑规格</h2>
+
+<div class="v17box" style="margin-bottom:10px;">
+  <strong>触发条件：</strong>任意Upgrade展开（easy / medium / hard，无例外）<br>
+  <strong>触发方式：</strong>AgentBridge监听三个事件，统一处理<br>
+  <strong>记录方式：</strong>每次触发新建一条agent_sessions记录（1:N关系）
+</div>
+
+<div class="dtree" style="margin-bottom:12px;">
+  <div class="node">学生展开第N个Upgrade</div>
+  <div class="i1 branch">↓ AgentBridge新建agent_sessions记录，注入upgrade_sequence、language_dimensions_total</div>
+  <div class="i1 node">AgentPanel出现 · Round 1冷启动</div>
+  <div class="i2 branch">第一句话引用 agent_context + 示范迷宫（不引用学生原话，唯一例外）</div>
+  <div class="i2 branch">↓ 学生回答 → DeepSeek评分（具体性+因果性+自主性 = 0-9）</div>
+  <div class="i2 node">Round 1总分判断</div>
+  <div class="i3 green">≥ 6/9 → continue:false · early_release=true · actual_rounds=1 · 放行</div>
+  <div class="i3 amber">3–5/9 → continue:true · mode:"fill" · 进入Round 2填空题</div>
+  <div class="i3 red">≤ 2/9 → continue:true · mode:"choice" · 进入Round 2选择题</div>
+  <div class="i2 branch">↓ Round 2（如进入）· 必须引用Round 1学生原话</div>
+  <div class="i3 green">本轮比Round 1提升≥2 → continue:false · actual_rounds=2 · 放行</div>
+  <div class="i3 red">未提升 → continue:true · mode:"choice" · 进入Round 3</div>
+  <div class="i2 branch">↓ Round 3（最终轮）· 无条件 continue:false · actual_rounds=3</div>
+  <div class="i2 branch">↓ Gate 1结束 · 写入 gate1_completed=true · best_student_quote · language_growth_note</div>
+  <div class="i1 branch">↓ AgentPanel消失 · 生产层恢复 · 学生继续复制prompt</div>
+</div>
+
+<h2>Gate 1 AgentBridge 核心代码</h2>
+<div class="sql">
+<span class="cm">// AgentBridge.js — Gate 1触发</span><br>
+<span class="kw">const</span> <span class="fn">handleUpgradeOpened</span> = <span class="kw">async</span> (upgradeId, difficulty) => {<br>
+&nbsp;&nbsp;<span class="kw">const</span> upgrade = LESSON.upgrades.find(u => u.id === upgradeId)<br>
+&nbsp;&nbsp;<span class="kw">const</span> existing = <span class="kw">await</span> supabase.from(<span class="str">'agent_sessions'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.select(<span class="str">'id'</span>).eq(<span class="str">'student_id'</span>, studentId).eq(<span class="str">'target_upgrade_id'</span>, upgradeId)<br>
+&nbsp;&nbsp;<span class="kw">if</span> (existing.data?.length > 0) <span class="kw">return</span> <span class="cm">// 同一Upgrade不重复触发</span><br><br>
+&nbsp;&nbsp;<span class="kw">const</span> seq = <span class="kw">await</span> <span class="fn">getUpgradeSequence</span>(studentId)<br>
+&nbsp;&nbsp;<span class="kw">const</span> { data: record } = <span class="kw">await</span> supabase.from(<span class="str">'agent_sessions'</span>).insert({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;student_id: studentId, session_id: sessionId,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;upgrade_sequence: seq,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;target_upgrade_id: upgrade.id,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;target_upgrade_label: upgrade.label,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;upgrade_difficulty: difficulty,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;language_dimensions_total: upgrade.language_dimensions.length,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;gate1_completed: <span class="kw">false</span> <span class="cm">// R4修复：默认false，完成后写true</span><br>
+&nbsp;&nbsp;}).select().single()<br><br>
+&nbsp;&nbsp;agentPanel.open({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;mode: <span class="str">'gate1'</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;sessionRecordId: record.id,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;upgrade,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;currentPrompt: promptGenerator.getCurrentPrompt()<br>
+&nbsp;&nbsp;})<br>
+}
+</div>
+
+<div class="div"></div>
+
+<h2>三种问题模式</h2>
+<table class="rtable">
+  <thead><tr><th>模式</th><th>触发条件</th><th>Agent行为</th><th>选择题后必须</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>open</strong><br>开放追问</td>
+      <td>Round 1默认<br>Round 2且上轮≥5</td>
+      <td>引用学生原话，追问language_dimensions中尚未覆盖的第一个维度</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>fill</strong><br>填空题</td>
+      <td>Round 1总分3-5<br>→ Round 2</td>
+      <td>提供填空框架：「我要___个___，碰到___会___」，学生填入</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>choice</strong><br>选择题</td>
+      <td>Round 1总分≤2<br>或Round 2未提升</td>
+      <td>提供3个选项，学生点选</td>
+      <td>必须追一句把选择变描述：「你选了[X]——[对应维度的具体追问]？」</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="amberbox" style="margin-top:6px;">
+  <strong>冷启动规则（Round 1唯一例外）：</strong>Round 1第一句话引用 <span class="mono">upgrade.agent_context</span> + 示范迷宫，不引用学生原话。从Round 2开始，必须引用学生在上一轮说出的原话。V17「必须用学生原话提问」规则从Round 2起严格执行。
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 4: GATE 2 COMPLETE LOGIC + RESUME
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">4 / 8 · Integration Spec</div>
+
+<h2>Gate 2：完整逻辑规格（含断点恢复）</h2>
+
+<div class="amberbox" style="margin-bottom:10px;">
+  <strong>触发条件：</strong><span class="mono">prompt_tab_revisited</span> 事件<br>
+  <strong>前置查询：</strong>AgentBridge执行两次查询，构建合并agenda<br>
+  <strong>时间模式：</strong><span class="mono">scheduled_end_at</span>（或fallback）计算剩余时间，&gt;8分钟→retry，≤8分钟→diagnose
+</div>
+
+<h3 style="margin-bottom:6px;">Gate 2触发：合并Agenda构建</h3>
+<div class="sql" style="margin-bottom:10px;">
+<span class="cm">// AgentBridge.js — Gate 2触发</span><br>
+<span class="kw">const</span> <span class="fn">handlePromptTabRevisited</span> = <span class="kw">async</span> () => {<br>
+&nbsp;&nbsp;<span class="cm">// 查询1：完整Gate 1，等待验证</span><br>
+&nbsp;&nbsp;<span class="kw">const</span> { data: pendingVerify } = <span class="kw">await</span> supabase.from(<span class="str">'agent_sessions'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.select(<span class="str">'*'</span>).eq(<span class="str">'student_id'</span>, studentId)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.eq(<span class="str">'gate1_completed'</span>, <span class="kw">true</span>).is(<span class="str">'upgrade_appeared'</span>, <span class="kw">null</span>)<br><br>
+&nbsp;&nbsp;<span class="cm">// 查询2：未完成的Gate 1（最近一条）</span><br>
+&nbsp;&nbsp;<span class="kw">const</span> { data: incomplete } = <span class="kw">await</span> supabase.from(<span class="str">'agent_sessions'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.select(<span class="str">'*'</span>).eq(<span class="str">'student_id'</span>, studentId)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.eq(<span class="str">'gate1_completed'</span>, <span class="kw">false</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.order(<span class="str">'created_at'</span>, { ascending: <span class="kw">false</span> }).limit(1)<br><br>
+&nbsp;&nbsp;<span class="kw">if</span> (pendingVerify.length === 0 && incomplete.length === 0) <span class="kw">return</span><br><br>
+&nbsp;&nbsp;<span class="kw">const</span> gate2Mode = <span class="fn">getTimeRemaining</span>(session) > 8 * 60 * 1000 ? <span class="str">'retry'</span> : <span class="str">'diagnose'</span><br><br>
+&nbsp;&nbsp;<span class="cm">// 合并Agenda：verify在前，resume在后</span><br>
+&nbsp;&nbsp;<span class="kw">const</span> agenda = [<br>
+&nbsp;&nbsp;&nbsp;&nbsp;...pendingVerify.map(s => ({ type: <span class="str">'verify'</span>, ...s })),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;...incomplete.map(s => ({ type: <span class="str">'resume'</span>, ...s }))<br>
+&nbsp;&nbsp;]<br><br>
+&nbsp;&nbsp;agentPanel.open({ mode: <span class="str">'gate2'</span>, agenda, gate2Mode })<br>
+}<br><br>
+<span class="cm">// R5修复：三层时间fallback</span><br>
+<span class="kw">const</span> <span class="fn">getTimeRemaining</span> = (session) => {<br>
+&nbsp;&nbsp;<span class="kw">if</span> (session.scheduled_end_at)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">new</span> Date(session.scheduled_end_at) - Date.now()<br>
+&nbsp;&nbsp;<span class="kw">if</span> (session.created_at)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">new</span> Date(session.created_at).getTime() + 90*60*1000 - Date.now()<br>
+&nbsp;&nbsp;<span class="kw">return</span> 20 * 60 * 1000 <span class="cm">// fallback：假设20分钟，倾向retry</span><br>
+}
+</div>
+
+<h3 style="margin-bottom:6px;">Gate 2对话流程</h3>
+<div class="dtree" style="margin-bottom:10px;">
+  <div class="node">Gate 2开场（合并模式）</div>
+  <div class="i1 branch">一句话提到所有待处理Upgrade，不区分verify和resume</div>
+  <div class="i1 branch">示例：「你刚才生成了游戏——我们看看两件事：计时器出现了吗？移动陷阱我们还没聊完，一起说说。」</div>
+  <div class="i1 branch">↓ 学生回答 → Agent评估归因质量</div>
+  <div class="i1 node">归因质量判断（verify部分）</div>
+  <div class="i2 green">完整归因（说出出现/未出现的原因）→ 直接写入，结束verify</div>
+  <div class="i2 amber">部分归因（只说结果）→ 逐一追问每个Upgrade：「[X]出现了——prompt里写了哪句话？」</div>
+  <div class="i2 red">无归因（只说感受）→ 降级选择题：「这几个里，哪个你最确定是你告诉AI的？」</div>
+  <div class="i1 node">失败处理（upgrade_appeared = false）</div>
+  <div class="i2 branch">追问：「你的prompt里有没有写[X]？」</div>
+  <div class="i3 amber">A类（没写）→ 引用best_student_quote：「你说过『[quote]』，把这句话加进prompt」</div>
+  <div class="i3 red">B类（写了AI没做）→ 引用未覆盖维度：「你描述了[X]，但有没有说[Y]？」</div>
+  <div class="i2 branch">时间判断</div>
+  <div class="i3 green">retry模式 → 给修改方向，学生重试，Gate 2重新验证，retry_count+1</div>
+  <div class="i3 amber">diagnose模式 → 「你知道为什么没出现了吗？」记录student_diagnosed，进报告</div>
+  <div class="i1 node">resume部分（如有）</div>
+  <div class="i2 branch">引用上一轮学生原话，从断点轮次继续，评分，写gate1_completed=true</div>
+</div>
+
+<div class="sagetip">
+  <strong>Diagnose不是失败：</strong>家长报告里，diagnose模式学生显示「孩子发现了自己的prompt里缺少[X的描述]——发现问题本身是比成功更难的能力。」这是真实的认知成果。
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 5: DATABASE SCHEMA
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">5 / 8 · Integration Spec</div>
+
+<h2>数据库规格：完整Schema</h2>
+
+<h3 style="margin-bottom:4px;">sessions表新增</h3>
+<div class="sql" style="margin-bottom:10px;">
+<span class="cm">-- TA在Dashboard创建/编辑session时设置</span><br>
+<span class="kw">ALTER TABLE</span> sessions <span class="kw">ADD COLUMN</span> scheduled_end_at timestamptz;<br>
+<span class="cm">-- NULL时AgentBridge使用created_at+90分钟作为fallback</span>
+</div>
+
+<h3 style="margin-bottom:4px;">agent_sessions表（新建）</h3>
+<div class="sql">
+<span class="kw">CREATE TABLE</span> agent_sessions (<br>
+&nbsp;&nbsp;id uuid <span class="kw">PRIMARY KEY DEFAULT</span> gen_random_uuid(),<br>
+&nbsp;&nbsp;student_id uuid <span class="kw">REFERENCES</span> students(id) <span class="kw">ON DELETE CASCADE</span>,<br>
+&nbsp;&nbsp;session_id uuid <span class="kw">REFERENCES</span> sessions(id) <span class="kw">ON DELETE CASCADE</span>,<br>
+&nbsp;&nbsp;created_at timestamptz <span class="kw">DEFAULT</span> now(),<br><br>
+&nbsp;&nbsp;<span class="cm">-- Upgrade信息</span><br>
+&nbsp;&nbsp;upgrade_sequence int <span class="kw">NOT NULL</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 该学生第几个Upgrade（1/2/3...）</span><br>
+&nbsp;&nbsp;target_upgrade_id text <span class="kw">NOT NULL</span>,<br>
+&nbsp;&nbsp;target_upgrade_label text,<br>
+&nbsp;&nbsp;upgrade_difficulty text,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 保留，不驱动逻辑</span><br>
+&nbsp;&nbsp;language_dimensions_total int,<br>
+&nbsp;&nbsp;language_dimensions_covered int <span class="kw">DEFAULT</span> 0,<br><br>
+&nbsp;&nbsp;<span class="cm">-- Gate 1状态</span><br>
+&nbsp;&nbsp;gate1_completed boolean <span class="kw">DEFAULT false</span>,&nbsp;<span class="cm">-- R4修复：区分完整/半完整记录</span><br>
+&nbsp;&nbsp;actual_rounds int,<br>
+&nbsp;&nbsp;early_release boolean <span class="kw">DEFAULT false</span>,<br><br>
+&nbsp;&nbsp;<span class="cm">-- Round 1</span><br>
+&nbsp;&nbsp;round_1_input text,<br>
+&nbsp;&nbsp;round_1_mode text,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 固定"open"（冷启动）</span><br>
+&nbsp;&nbsp;round_1_score_specificity int, round_1_score_causality int,<br>
+&nbsp;&nbsp;round_1_score_autonomy int, round_1_total int,<br><br>
+&nbsp;&nbsp;<span class="cm">-- Round 2（如进入，否则NULL）</span><br>
+&nbsp;&nbsp;round_2_input text, round_2_mode text,<br>
+&nbsp;&nbsp;round_2_score_specificity int, round_2_score_causality int,<br>
+&nbsp;&nbsp;round_2_score_autonomy int, round_2_total int,<br><br>
+&nbsp;&nbsp;<span class="cm">-- Round 3（如进入，否则NULL）</span><br>
+&nbsp;&nbsp;round_3_input text, round_3_mode text,<br>
+&nbsp;&nbsp;round_3_score_specificity int, round_3_score_causality int,<br>
+&nbsp;&nbsp;round_3_score_autonomy int, round_3_total int,<br><br>
+&nbsp;&nbsp;<span class="cm">-- Gate 2字段（Gate 1完成后为NULL，Gate 2时填入）</span><br>
+&nbsp;&nbsp;upgrade_appeared boolean,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- NULL=未验证 true=出现 false=未出现</span><br>
+&nbsp;&nbsp;student_attributed boolean,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 学生能说出为什么出现/未出现</span><br>
+&nbsp;&nbsp;gate2_failure_type text,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 'no_prompt'(A类) 'prompt_ignored'(B类)</span><br>
+&nbsp;&nbsp;gate2_mode text,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 'retry' 'diagnose'</span><br>
+&nbsp;&nbsp;gate2_input text,<br>
+&nbsp;&nbsp;student_diagnosed boolean,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- diagnose模式：说出了原因</span><br>
+&nbsp;&nbsp;retry_count int <span class="kw">DEFAULT</span> 0,<br>
+&nbsp;&nbsp;retry_appeared boolean,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- retry后出现了吗</span><br><br>
+&nbsp;&nbsp;<span class="cm">-- 报告素材</span><br>
+&nbsp;&nbsp;best_student_quote text,<br>
+&nbsp;&nbsp;language_growth_note text,<br>
+&nbsp;&nbsp;final_prompt_quality text&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 'low' 'medium' 'high'</span><br>
+);<br><br>
+<span class="cm">-- 索引（Gate 2查询性能）</span><br>
+<span class="kw">CREATE INDEX</span> idx_agent_sessions_student <span class="kw">ON</span> agent_sessions(student_id);<br>
+<span class="kw">CREATE INDEX</span> idx_agent_sessions_pending <span class="kw">ON</span> agent_sessions(student_id, gate1_completed, upgrade_appeared);
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 6: SYSTEM PROMPTS + TA DASHBOARD
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">6 / 8 · Integration Spec</div>
+
+<h2>System Prompt规格</h2>
+
+<h3 style="margin-bottom:4px;">Gate 1 System Prompt</h3>
+<div class="sql" style="font-size:9px;line-height:1.75;margin-bottom:10px;">
+<span class="cm">// 角色</span><br>
+你是认知教练，不是助手。任务是追问，不是给答案。<br><br>
+<span class="cm">// 核心规则</span><br>
+- 不接受形容词（酷/好玩/难）→ 追问成名词或动词<br>
+- 每轮只追language_dimensions中尚未覆盖的第一个维度<br>
+- Round 1：引用agent_context+示范迷宫（冷启动唯一例外）<br>
+- Round 2起：必须引用学生上一轮原话<br>
+- 永远不替学生写prompt<br>
+- 选择题后必须追一句把选择变成描述<br><br>
+<span class="cm">// 动态轮数规则</span><br>
+Round 1后：≥6→continue:false ｜ 3-5→continue:true,mode:"fill" ｜ ≤2→continue:true,mode:"choice"<br>
+Round 2后：提升≥2→continue:false ｜ 未提升→continue:true,mode:"choice"<br>
+Round 3后：无条件continue:false<br><br>
+<span class="cm">// 返回格式（严格JSON）</span><br>
+{ "next_question":str, "mode":"open|fill|choice",<br>
+&nbsp;&nbsp;"fill_template":str|null, "choices":[str]|null,<br>
+&nbsp;&nbsp;"continue":bool,<br>
+&nbsp;&nbsp;"scores":{"specificity":0-3,"causality":0-3,"autonomy":0-3},<br>
+&nbsp;&nbsp;"covered_dimensions":[str],<br>
+&nbsp;&nbsp;"best_quote":str, "language_growth":str }<br><br>
+<span class="cm">// 动态注入Context</span><br>
+示范迷宫:{demo_maze} · Upgrade:{upgrade.label} · 描述:{upgrade.agent_context}<br>
+维度:{upgrade.language_dimensions} · 当前prompt:{current_prompt}<br>
+对话历史:{history} · 轮次:Round {n} · 上轮分:{prev_score}
+</div>
+
+<h3 style="margin-bottom:4px;">Gate 2 System Prompt</h3>
+<div class="sql" style="font-size:9px;line-height:1.75;margin-bottom:10px;">
+<span class="cm">// 角色</span><br>
+你是验证教练。帮学生发现「语言→结果」因果链，不帮学生改prompt。<br><br>
+<span class="cm">// 合并模式：同时处理verify和resume</span><br>
+开场：一句话提到所有待处理Upgrade，不区分类型，语气连贯。<br>
+顺序：先处理verify，再处理resume。<br><br>
+verify：评估归因质量 → 完整/部分/无 → 升降级追问<br>
+failure：先问「prompt里有没有写[X]？」→ A类引用best_quote → B类追问未覆盖维度<br>
+时间模式 retry：给修改方向，允许重试<br>
+时间模式 diagnose：「你知道为什么没出现了吗？」记录原因，结束<br>
+resume：引用prevInput，从断点轮次继续评分<br><br>
+<span class="cm">// 返回格式（严格JSON）</span><br>
+{ "response":str, "gate2_result":"complete|partial|none",<br>
+&nbsp;&nbsp;"updates":[<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{"sessionId":str,"type":"verify","upgrade_appeared":bool,"attributed":bool,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"failure_type":"no_prompt|prompt_ignored|null"},<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{"sessionId":str,"type":"resume_complete","gate1_completed":true,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"round_N_input":str,"scores":{...},"best_quote":str}<br>
+&nbsp;&nbsp;],<br>
+&nbsp;&nbsp;"continue":bool, "diagnosed_reason":str|null }<br><br>
+<span class="cm">// 动态注入Context</span><br>
+agenda:{pending_sessions[]} · gate2_mode:"retry|diagnose"<br>
+每条session包含：upgrade_label, best_student_quote, language_dimensions, covered_dimensions, prevInput
+</div>
+
+<div class="div"></div>
+
+<h2>TA Dashboard新增规格</h2>
+<div class="g2">
+  <div>
+    <h3 style="margin-bottom:5px;">Setup.jsx — 结束时间设置</h3>
+    <div class="card" style="margin-bottom:6px;">
+      <p style="font-size:10.5px;line-height:1.6;">Session创建时新增时间选择器。默认值：创建时间 + 90分钟。TA可修改，实时生效（所有已进行的Gate 2立即使用新值）。未设置时显示警告提示，不强制。</p>
+    </div>
+  </div>
+  <div>
+    <h3 style="margin-bottom:5px;">StudentCard.jsx — 新增信号</h3>
+    <div class="card" style="margin-bottom:6px;">
+      <p style="font-size:10.5px;line-height:1.6;">
+        🟢 X次1轮放行（early_release）<br>
+        🟡 Y次2轮完成<br>
+        🔴 Z次3轮 / 跳过<br>
+        Gate 2状态：已验证/未验证
+      </p>
+    </div>
+  </div>
+</div>
+<div class="redbox" style="margin-top:4px;">
+  <strong>高优先级TA介入信号：</strong>actual_rounds=3 且 upgrade_appeared=false 且 gate2_mode=retry 且 时间不足 → 学生卡住，需要老师立即物理介入。StudentCard用红色高亮。
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 7: IMPLEMENTATION PLAN
+═══════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-label">7 / 8 · Integration Spec</div>
+
+<h2>扩展端口：未来20节课直接接入</h2>
+
+<p style="font-size:11px;color:#555;line-height:1.6;margin-bottom:10px;">现有架构对单课时可用，但有三处封闭点会阻碍未来课程接入。本页定义三个开放端口——在P1阶段加入，后续20节课AgentBridge和AgentPanel零改动。</p>
+
+<div class="redbox" style="margin-bottom:10px;">
+  <strong>现有封闭点：</strong>AgentBridge里 <span class="mono">LESSON.upgrades.find()</span> 直接引用全局单例——一个session只能是一种课程。System Prompt里 <span class="mono">demo_maze_description</span> 硬编码迷宫描述。<span class="mono">language_dimensions</span> 每节课重复写相同维度概念。这三处在Lesson 2没有问题，但Lesson 5（平台跳跃）、机器人课接入时会需要改架构。
+</div>
+
+<h3 style="margin-bottom:6px;">端口1 — lesson.js：每个课程配置加 <span class="mono">agent</span> 块</h3>
+
+<div class="v17box" style="margin-bottom:8px;">
+  <strong>解决：</strong>示范作品描述硬编码问题。AgentBridge初始化时读 <span class="mono">LESSON.agent.demo_description</span>，新课程只需填这一个字段，Agent立刻用正确锚点。
+</div>
+
+<div class="sql" style="margin-bottom:10px;">
+<span class="cm">// lesson.js — 每个课程配置新增agent块</span><br>
+<span class="kw">export const</span> LESSON_02_MAZE = {<br>
+&nbsp;&nbsp;id: <span class="str">"maze-v1"</span>,<br>
+&nbsp;&nbsp;title: <span class="str">"Maze Game"</span>,<br>
+&nbsp;&nbsp;upgrades: [...],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 现有字段不变</span><br>
+&nbsp;&nbsp;buildPrompt() {...},&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 现有方法不变</span><br><br>
+&nbsp;&nbsp;<span class="kw">agent</span>: {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// ← 新增端口</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;demo_description: <span class="str">"一个有10条通道的迷宫，玩家从左上角走到右下角，没有任何障碍物"</span>,<br>
+&nbsp;&nbsp;}<br>
+}<br><br>
+<span class="cm">// Lesson 5接入时只需填自己的描述，AgentBridge零改动</span><br>
+<span class="kw">export const</span> LESSON_05_PLATFORMER = {<br>
+&nbsp;&nbsp;id: <span class="str">"platformer-v1"</span>,<br>
+&nbsp;&nbsp;agent: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;demo_description: <span class="str">"一个有三层平台的跳跃游戏，玩家只能向右走，没有敌人"</span>,<br>
+&nbsp;&nbsp;}<br>
+}<br><br>
+<span class="cm">// AgentBridge初始化</span><br>
+<span class="kw">const</span> demoDescription = LESSON.agent?.demo_description ?? <span class="str">"示范作品"</span>
+</div>
+
+<h3 style="margin-bottom:6px;">端口2 — agent_sessions表：新增 <span class="mono">lesson_type</span> 字段</h3>
+
+<div class="v17box" style="margin-bottom:8px;">
+  <strong>解决：</strong>跨课程数据混在同一张表无法区分。TA Dashboard可按课程筛选。报告可按课程类型定制语言。一行SQL，建表时加入，以后不用改。
+</div>
+
+<div class="sql" style="margin-bottom:10px;">
+<span class="cm">-- agent_sessions建表时直接加入（不是事后ALTER）</span><br>
+lesson_type text,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">-- 从sessions.lesson_type继承，建record时写入</span><br><br>
+<span class="cm">-- AgentBridge建记录时</span><br>
+<span class="kw">await</span> supabase.from(<span class="str">'agent_sessions'</span>).insert({<br>
+&nbsp;&nbsp;...<br>
+&nbsp;&nbsp;lesson_type: LESSON.id,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// ← 一行新增</span><br>
+})<br><br>
+<span class="cm">-- TA Dashboard查询特定课程的所有语言精确度数据</span><br>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> agent_sessions<br>
+<span class="kw">WHERE</span> session_id <span class="kw">IN</span> (<span class="kw">SELECT</span> id <span class="kw">FROM</span> sessions <span class="kw">WHERE</span> lesson_type = <span class="str">'maze-v1'</span>)<br><br>
+<span class="cm">-- reportPrompt.js可按课程定制报告语言</span><br>
+<span class="kw">const</span> courseLabel = session.lesson_type === <span class="str">'maze-v1'</span> ? <span class="str">'迷宫游戏课'</span> : <span class="str">'编程课'</span>
+</div>
+
+<h3 style="margin-bottom:6px;">端口3 — lesson.js：全局 <span class="mono">DIMENSION_LIBRARY</span> 常量</h3>
+
+<div class="v17box" style="margin-bottom:8px;">
+  <strong>解决：</strong>每节课的Upgrade重复写相同维度描述（「触发条件」「结果描述」在每门课都会出现）。维度库让新课程直接引用，保持语言一致，减少重复劳动。
+</div>
+
+<div class="sql" style="margin-bottom:10px;">
+<span class="cm">// lesson.js顶部 — 全局维度库</span><br>
+<span class="kw">export const</span> DIMENSION_LIBRARY = {<br>
+&nbsp;&nbsp;trigger:   <span class="str">"触发条件（什么情况下发生）"</span>,<br>
+&nbsp;&nbsp;result:    <span class="str">"结果描述（发生了会怎样）"</span>,<br>
+&nbsp;&nbsp;quantity:  <span class="str">"数量或大小（多少个/多大）"</span>,<br>
+&nbsp;&nbsp;position:  <span class="str">"位置（在哪里出现）"</span>,<br>
+&nbsp;&nbsp;speed:     <span class="str">"速度（快/慢/变速）"</span>,<br>
+&nbsp;&nbsp;direction: <span class="str">"方向（哪个方向移动）"</span>,<br>
+&nbsp;&nbsp;duration:  <span class="str">"持续时间（持续多久）"</span>,<br>
+&nbsp;&nbsp;condition: <span class="str">"触发条件（满足什么才激活）"</span>,<br>
+}<br><br>
+<span class="cm">// Lesson 2 Upgrade引用</span><br>
+{ id: <span class="str">"moving-trap"</span>, agent_context: <span class="str">"会自动移动的障碍物"</span>,<br>
+&nbsp;&nbsp;language_dimensions: [DIMENSION_LIBRARY.direction, DIMENSION_LIBRARY.speed, DIMENSION_LIBRARY.result] }<br><br>
+<span class="cm">// Lesson 5 Upgrade引用同一个库，语言完全一致</span><br>
+{ id: <span class="str">"moving-platform"</span>, agent_context: <span class="str">"会左右移动的平台"</span>,<br>
+&nbsp;&nbsp;language_dimensions: [DIMENSION_LIBRARY.direction, DIMENSION_LIBRARY.speed, DIMENSION_LIBRARY.duration] }
+</div>
+
+<div class="sagetip">
+  <strong>维度库的教学价值：</strong>不同课程里，学生反复遇到相同的语言挑战（「触发条件」「结果描述」）。维度库让这些挑战跨课程保持一致的语言形式，学生在Lesson 5遇到「触发条件」时，已经在Lesson 2练习过了。跨课程的语言精确度训练形成迁移。
+</div>
+
+<div class="div" style="margin-top:12px;"></div>
+
+<h2>关于跨课时项目（机器人课）的预留</h2>
+
+<div class="amberbox" style="margin-bottom:8px;">
+  <strong>当前架构的限制：</strong><span class="mono">agent_sessions</span> 按session隔离——Lesson 3的对话看不到Lesson 2的记录。机器人课跨多节课迭代同一个项目，Agent需要记住上节课学生说了什么。
+</div>
+
+<div class="g2">
+  <div class="card">
+    <div class="tag t-gray">现在不实现，预留接口</div>
+    <p style="font-size:10.5px;line-height:1.6;color:#555;">在 <span class="mono">students</span> 表预留 <span class="mono">project_id uuid</span> 字段（默认NULL）。机器人课接入时，TA创建跨课时项目，学生关联同一个project_id。<span class="mono">agent_sessions</span> 查询时可以跨session聚合。</p>
+    <div class="sql" style="margin-top:6px;font-size:9px;">
+<span class="cm">-- 预留，现在不用，以后不改结构</span><br>
+<span class="kw">ALTER TABLE</span> students<br>
+<span class="kw">ADD COLUMN</span> project_id uuid <span class="kw">DEFAULT NULL</span>;
+    </div>
+  </div>
+  <div class="card-v17">
+    <div class="tag t-v17">现在加入，成本极低</div>
+    <p style="font-size:10.5px;line-height:1.6;color:#1a1a4a;">这一行ALTER TABLE放在P1-B（建agent_sessions表）时一起执行。加入students表。以后机器人课接入时，只需要在TA Dashboard加「创建项目」入口，不需要改任何Agent逻辑或数据库结构。</p>
+  </div>
+</div>
+
+</div>
+
+<div class="page-label">8 / 8 · Integration Spec</div>
+
+<h2>实施顺序：P1 → P2 → P3</h2>
+
+<p style="font-size:11px;color:#555;line-height:1.6;margin-bottom:10px;">严格按顺序执行。P1是数据和内容基础，P2是核心功能，P3是报告和监控。P2不能在P1完成前开始。</p>
+
+<h3 style="margin-bottom:6px;">P1 — 基础层（必须全部完成才能进入P2）</h3>
+<div style="display:flex;flex-direction:column;margin-bottom:12px;">
+  <div class="tl-row">
+    <div class="tl-time">P1-A</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#5b21b6;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">sessions表新增 scheduled_end_at</div>
+      <div class="tl-desc">ALTER TABLE + TA Dashboard Setup.jsx时间选择器。默认值逻辑写在前端。独立可测试。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P1-B</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#5b21b6;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">agent_sessions表建立 + students表预留字段</div>
+      <div class="tl-desc">完整schema含所有字段（含lesson_type · gate1_completed · 两个查询索引）。同时执行 <span class="mono">ALTER TABLE students ADD COLUMN project_id uuid DEFAULT NULL</span>（机器人跨课时预留，成本极低）。建完后用脚本验证INSERT/SELECT/UPDATE权限。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P1-C</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#5b21b6;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">Lesson 2 lesson.js — Upgrade列表 + agent字段 + 扩展端口</div>
+      <div class="tl-desc">定义迷宫游戏所有Upgrade。同时建立三个扩展端口，以后课程零改动接入：</div>
+      <div class="amberbox" style="margin-top:4px;">
+        <strong>端口1：</strong>每个课程config加 <span class="mono">agent: { demo_description: "..." }</span> 块。AgentBridge读此字段，不再硬编码迷宫描述。<br>
+        <strong>端口2：</strong>lesson.js顶部建立 <span class="mono">DIMENSION_LIBRARY</span> 常量（至少8个通用维度）。Upgrade的language_dimensions引用库，不重复写相同描述。<br>
+        <strong>端口3：</strong>lesson_type字段已在P1-B的agent_sessions表里，AgentBridge建记录时写入 <span class="mono">LESSON.id</span>，无需额外工作。
+      </div>
+      <div class="amberbox" style="margin-top:4px;">language_dimensions的质量直接决定Agent追问的深度。「描述它如何移动」太泛，「移动方向（左右/上下/随机）」才可以被Agent引用。优先用DIMENSION_LIBRARY里的标准维度，需要课程专属描述时再自定义。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P1-D</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#5b21b6;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">System Prompt手动测试（不写代码）</div>
+      <div class="tl-desc">在Claude或DeepSeek里模拟两个场景：① Easy Upgrade（计时器），1轮放行路径。② Hard Upgrade（移动陷阱），3轮降级路径。验证JSON格式稳定、评分合理、continue字段正确后，再进入P2。</div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-bottom:6px;">P2 — 核心功能层</h3>
+<div style="display:flex;flex-direction:column;margin-bottom:12px;">
+  <div class="tl-row">
+    <div class="tl-time">P2-A</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1e40af;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">AgentBridge.js</div>
+      <div class="tl-desc">事件监听（三个upgrade_opened + prompt_tab_revisited）。Gate 1：新建记录，防重复触发。Gate 2：两次查询，合并agenda，getTimeRemaining三层fallback。独立模块，不import任何现有component。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P2-B</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1e40af;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">AgentPanel.jsx</div>
+      <div class="tl-desc">三种mode：gate1 / gate2 / gate1_resume。动态轮数：continue字段驱动。三种问题模式：open/fill/choice渲染。生产层overlay：agentGateActive状态控制opacity和pointer-events。handleGate2Complete批量写回。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P2-C</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1e40af;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">App.jsx集成</div>
+      <div class="tl-desc">顶层新增agentGateActive状态。AgentBridge初始化。AgentPanel挂载（z-index高层）。生产层包裹在opacity/pointer-events控制的div内。加入VITE_DEEPSEEK_API_KEY到student-app/.env.local。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P2-D</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1e40af;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">Upgrade.jsx — easy_challenge_opened</div>
+      <div class="tl-desc">Easy Upgrade展开时新增一行agentBridge.trigger。Medium/Hard已有事件，确认emit格式一致。</div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-bottom:6px;">P3 — 报告和监控层</h3>
+<div style="display:flex;flex-direction:column;margin-bottom:12px;">
+  <div class="tl-row">
+    <div class="tl-time">P3-A</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1a6640;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">reportPrompt.js — agentSection注入</div>
+      <div class="tl-desc">buildReportPrompt()新增JOIN查询agent_sessions。多条记录聚合。零条记录时agentSection=""，不报错。diagnose结果转化为正向报告语言。</div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-time">P3-B</div>
+    <div class="tl-spine"><div class="tl-dot" style="background:#1a6640;"></div></div>
+    <div class="tl-body">
+      <div class="tl-title">StudentCard.jsx — 语言精确度信号</div>
+      <div class="tl-desc">显示early_release次数、actual_rounds分布。高优先级红色信号：3轮后upgrade_appeared=false且时间不足。</div>
+    </div>
+  </div>
+</div>
+
+<div class="div"></div>
+
+<div class="card-ink">
+  <p style="font-size:11.5px;font-weight:600;line-height:1.9;color:white;">
+    集成边界总结：<br>
+    <span style="color:#ffe84a;">现有代码改动只有3处</span><span style="font-size:10px;color:#888;font-weight:400;">（lesson.js加2字段+agent块 · Upgrade.jsx加1行emit · reportPrompt.js加1个section）</span><br>
+    <span style="color:#ffe84a;">新增代码只有2个文件</span><span style="font-size:10px;color:#888;font-weight:400;">（AgentBridge.js · AgentPanel.jsx）</span><br>
+    <span style="color:#ffe84a;">运行时风险2个已修复</span><span style="font-size:10px;color:#888;font-weight:400;">（R4：gate1_completed字段 · R5：三层time fallback）</span><br>
+    <span style="color:#ffe84a;">数据库变化3处</span><span style="font-size:10px;color:#888;font-weight:400;">（sessions加scheduled_end_at · 新建agent_sessions含lesson_type · students加project_id）</span><br>
+    <span style="color:#ffe84a;">扩展端口3个</span><span style="font-size:10px;color:#888;font-weight:400;">（端口1：lesson.agent块 · 端口2：DIMENSION_LIBRARY · 端口3：lesson_type字段）</span><br>
+    <span style="color:#ffe84a;">未来20节课接入</span><span style="font-size:10px;color:#888;font-weight:400;">：AgentBridge和AgentPanel零改动 · 每节课只需填lesson.js的agent块和Upgrade的language_dimensions</span>
+  </p>
+</div>
+</div>
+
+</body>
+</html>
