@@ -4,15 +4,15 @@
  * 2026-05-24: 从弹窗改为持久界面
  * 2026-05-26: V17 Phase B 重构 - 集成新架构
  * 2026-07-11: 方案 B - 统一 Debug Agent（去掉 Orchestrator + Tools 分离）
+ * 2026-07-11: 方案 C - Session Memory（统一记忆管理）
  *
  * - 左侧：Chat 历史列表
  * - 右侧：当前对话窗口
  * - 对话历史存储在 debug_sessions.conversation_history
  *
- * 方案 B 架构：
- * - 单一 RoundCounter
- * - 单一统一 Agent，直接帮助学生
- * - 无 mode 切换，无分类追问
+ * 架构：
+ * - 方案 B: 单一统一 Agent，无 mode 切换
+ * - 方案 C: SessionMemoryManager 统一缓存和上下文
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -26,13 +26,18 @@ import { RoundCounter } from '../lib/agentGuards';
 import { callAgent, callAgentDirect } from '../lib/agentCaller';
 import { buildUnifiedDebugPrompt, buildResetConfirmPrompt } from '../lib/prompts/unifiedDebugPrompt';
 import { buildResolutionJudgePrompt } from '../lib/prompts/resolutionJudgePrompt';
+import { writeDebugComplete, writeEvent } from '../lib/timeline';
+
+// 方案 C: Session Memory
+import { sessionMemory } from '../lib/sessionMemory';
 import {
-  writeDebugComplete,
-  writeEvent,
-  formatForDebug,
-  getTimeline,
-  getSuccessfulUpgrades as getSuccessfulUpgradesFromTimeline
-} from '../lib/timeline';
+  createUserMessage,
+  createAssistantMessage,
+  fromDBMessages,
+  toDBMessages,
+  filterVisibleMessages,
+  estimateTotalTokens,
+} from '../lib/messageFormatter';
 
 // =====================================================
 // 子组件：ChatSidebar — 左边历史列表
@@ -407,6 +412,13 @@ export default function DebugChat({
   // P7: Resolution/Iteration/Recovery state
   const [awaitingResolution, setAwaitingResolution] = useState(false);
 
+  // 方案 C: 初始化 SessionMemory
+  useEffect(() => {
+    if (studentId && sessionId) {
+      sessionMemory.setSession(studentId, sessionId);
+    }
+  }, [studentId, sessionId]);
+
   // 初始化：加载 chat 列表 + Realtime subscription
   useEffect(() => {
     if (!studentId) return;
@@ -590,17 +602,16 @@ export default function DebugChat({
   };
 
   // =====================================================
-  // 构建 System Prompt (使用新架构的 prompts + timeline)
+  // 构建 System Prompt (方案 C: 使用 SessionMemory)
   // =====================================================
 
-  // 方案 B: 统一 Debug Agent prompt
   const buildSystemPrompt = async () => {
-    const timeline = await getTimeline(studentId, sessionId);
-    const contextString = formatForDebug(timeline, currentPrompt);
+    // 方案 C: 使用 sessionMemory 获取统一上下文
+    const contextString = await sessionMemory.getContextForAgent('debug', currentPrompt);
 
     // 如果需要 reset，获取成功的 Upgrade 列表
     if (showUpgradeSelector) {
-      const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
+      const upgrades = await sessionMemory.getSuccessfulUpgrades();
       setSuccessfulUpgrades(upgrades);
       return buildResetConfirmPrompt(contextString, upgrades, language);
     }
@@ -856,8 +867,8 @@ export default function DebugChat({
 
       // 如果是 reset，显示 Upgrade 选择器
       if (fixType === 'reset' && !showUpgradeSelector) {
-        const timeline = await getTimeline(studentId, sessionId);
-        const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
+        // 方案 C: 使用 sessionMemory
+        const upgrades = await sessionMemory.getSuccessfulUpgrades();
         setSuccessfulUpgrades(upgrades);
         if (upgrades.length > 0) {
           setShowUpgradeSelector(true);

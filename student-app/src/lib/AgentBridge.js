@@ -12,11 +12,15 @@
  * 2026-05-26: V17 Phase B 集成
  * - 添加 timeline 模块的 invalidateCache 调用
  * - Gate 完成时同步刷新 timeline 缓存
+ *
+ * 2026-07-11: 方案 C - Session Memory
+ * - 使用 sessionMemory 统一缓存管理
  */
 
 import { supabase } from './supabase';
 import { LESSON } from './lesson';
 import { invalidateCache as invalidateTimelineCache } from './timeline';
+import { sessionMemory } from './sessionMemory';
 
 // 内部状态
 let _sessionId = null;
@@ -163,11 +167,16 @@ export async function buildStudentContext(studentId, sessionId, currentPrompt) {
 /**
  * 手动刷新缓存
  * 在 Gate 切换、Upgrade 完成、Debug 完成时调用
+ *
+ * 方案 C: 同时清除 sessionMemory 缓存
  */
 export function invalidateContextCache() {
   _contextCache = null;
   _contextCacheTime = null;
   _contextCacheStudentId = null;
+
+  // 方案 C: 清除 sessionMemory 缓存
+  sessionMemory.clearAllCaches();
 }
 
 /**
