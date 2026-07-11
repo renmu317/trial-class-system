@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { User, LogIn, ArrowRight, RefreshCw } from 'lucide-react'
 import { useT } from '../i18n'
+import { LanguageToggle } from '../lib/LanguageContext'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -161,6 +162,11 @@ export default function StudentLogin({ onLogin }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+      {/* Language Toggle - Top Right */}
+      <div className="fixed top-4 right-4">
+        <LanguageToggle />
+      </div>
+
       <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -287,7 +293,7 @@ export default function StudentLogin({ onLogin }) {
                       <RefreshCw className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        Join Class
+                        {t('studentLogin.joinClass')}
                         <ArrowRight className="w-5 h-5" />
                       </>
                     )}
