@@ -3,16 +3,16 @@
  *
  * 2026-05-24: 从弹窗改为持久界面
  * 2026-05-26: V17 Phase B 重构 - 集成新架构
+ * 2026-07-11: 方案 B - 统一 Debug Agent（去掉 Orchestrator + Tools 分离）
  *
  * - 左侧：Chat 历史列表
  * - 右侧：当前对话窗口
  * - 对话历史存储在 debug_sessions.conversation_history
  *
- * 新架构：
- * - 使用 RoundCounter 替代 roundNumber/toolRound 状态
- * - 使用 callAgent 替代 callDebugAgent
- * - 使用 prompts/*.js 中的 System Prompt 构建函数
- * - 使用 preCheckInput 进行代码层输入验证
+ * 方案 B 架构：
+ * - 单一 RoundCounter
+ * - 单一统一 Agent，直接帮助学生
+ * - 无 mode 切换，无分类追问
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -21,29 +21,18 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../lib/LanguageContext';
 import { useT } from '../i18n';
 
-// V17 Phase B: 新架构导入
-import { RoundCounter, preCheckInput, getMaxRounds, INVALID_RESPONSE_TEMPLATES } from '../lib/agentGuards';
+// 方案 B: 统一 Debug Agent
+import { RoundCounter } from '../lib/agentGuards';
 import { callAgent, callAgentDirect } from '../lib/agentCaller';
-import { buildOrchestratorPrompt } from '../lib/prompts/debugOrchestratorPrompt';
-import { buildPromptToolPrompt } from '../lib/prompts/debugPromptToolPrompt';
-import { buildCodeToolPrompt, buildResetToolPrompt } from '../lib/prompts/debugCodeToolPrompt';
+import { buildUnifiedDebugPrompt, buildResetConfirmPrompt } from '../lib/prompts/unifiedDebugPrompt';
 import { buildResolutionJudgePrompt } from '../lib/prompts/resolutionJudgePrompt';
-import { addRouteMarker, compressTool, compressChat, trimConversationHistory } from '../lib/conversationHistory';
 import {
-  writeDebugMessage,
-  writeDebugToolSwitch,
   writeDebugComplete,
   writeEvent,
   formatForDebug,
   getTimeline,
-  invalidateCache
+  getSuccessfulUpgrades as getSuccessfulUpgradesFromTimeline
 } from '../lib/timeline';
-
-// V17 Phase B: 从 timeline 获取成功的 Upgrade（用于 Reset Tool）
-import { getSuccessfulUpgrades as getSuccessfulUpgradesFromTimeline } from '../lib/timeline';
-
-// 确认词正则（用于 isFirstAfterRoute 检测）
-const CONFIRMATION_WORDS = /^(ok|okay|yes|no|sure|good|great|yeah|yep|got\s*it|fine|alright|k|y|n)\.?$/i;
 
 // =====================================================
 // 子组件：ChatSidebar — 左边历史列表
@@ -400,27 +389,16 @@ export default function DebugChat({
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentMode, setCurrentMode] = useState('debug_orchestrator');
   const [bugSummary, setBugSummary] = useState('');
-  const [relatedUpgradeId, setRelatedUpgradeId] = useState(null);  // Gate 2 重设计：关联的 Upgrade ID
-  const [isFirstAfterRoute, setIsFirstAfterRoute] = useState(false);
-  const [attemptCount, setAttemptCount] = useState(0);
   const [executionPayload, setExecutionPayload] = useState(null);
 
-  // V17 Phase B: 使用 RoundCounter ref 替代 state
-  const orchestratorRoundCounter = useRef(new RoundCounter());
-  const toolRoundCounter = useRef(new RoundCounter());
+  // 方案 B: 统一 Debug Agent，单一 RoundCounter
+  const roundCounter = useRef(new RoundCounter());
 
-  // V17 修复：用 ref 同步存储 currentMode，避免 setState 异步竞态
-  const currentModeRef = useRef('debug_orchestrator');
-
-  // Reset Phase 1 状态
-  const [resetStep, setResetStep] = useState(1);
+  // Reset 状态（方案 B 简化）
   const [showUpgradeSelector, setShowUpgradeSelector] = useState(false);
   const [selectedUpgrades, setSelectedUpgrades] = useState([]);
   const [successfulUpgrades, setSuccessfulUpgrades] = useState([]);
-
-  // Q状态追踪已移除 - 简化版 Orchestrator 一轮判断
 
   // Image upload state
   const [pendingImage, setPendingImage] = useState(null);
@@ -489,40 +467,22 @@ export default function DebugChat({
   const loadChatMessages = async (chatId) => {
     const { data } = await supabase
       .from('debug_sessions')
-      .select('conversation_history, current_mode, resolved, bug_description, related_upgrade_id')
+      .select('conversation_history, resolved, bug_description')
       .eq('id', chatId)
       .single();
 
     if (data) {
-      const mode = data.current_mode || 'debug_orchestrator';
       setMessages(data.conversation_history || []);
-      setCurrentMode(mode);
-      currentModeRef.current = mode;  // 同步更新 ref（修复竞态）
       setBugSummary(data.bug_description || '');
-      setRelatedUpgradeId(data.related_upgrade_id || null);  // Gate 2 重设计
       setExecutionPayload(null);
       setShowUpgradeSelector(false);
-      setAwaitingResolution(false);  // P7: Reset resolution state
+      setAwaitingResolution(false);
 
-      // V17 Phase B: 从对话历史计算 round
+      // 方案 B: 从对话历史计算 round
       const userMessages = (data.conversation_history || []).filter(m => m.role === 'user');
-      if (data.current_mode === 'debug_orchestrator') {
-        orchestratorRoundCounter.current = new RoundCounter();
-        for (let i = 0; i < userMessages.length; i++) {
-          orchestratorRoundCounter.current.increment();
-        }
-      } else {
-        // 找到最后一个路由标记，计算之后的 user 消息数
-        const history = data.conversation_history || [];
-        const lastRouteIdx = history.reduce((acc, t, i) =>
-          t.content?.includes('[ROUTED-TO-') ? i : acc, -1);
-        const messagesAfterRoute = lastRouteIdx >= 0 ? history.slice(lastRouteIdx) : history;
-        const toolUserMessages = messagesAfterRoute.filter(m => m.role === 'user');
-
-        toolRoundCounter.current = new RoundCounter();
-        for (let i = 0; i < toolUserMessages.length; i++) {
-          toolRoundCounter.current.increment();
-        }
+      roundCounter.current = new RoundCounter();
+      for (let i = 0; i < userMessages.length; i++) {
+        roundCounter.current.increment();
       }
     }
   };
@@ -633,35 +593,19 @@ export default function DebugChat({
   // 构建 System Prompt (使用新架构的 prompts + timeline)
   // =====================================================
 
-  const buildSystemPrompt = async (mode) => {
-    // V17 Phase B: 使用 getTimeline + formatForDebug 替代 buildStudentContext
+  // 方案 B: 统一 Debug Agent prompt
+  const buildSystemPrompt = async () => {
     const timeline = await getTimeline(studentId, sessionId);
     const contextString = formatForDebug(timeline, currentPrompt);
 
-    if (mode === 'debug_orchestrator') {
-      // 简化版：不再传递 qState
-      return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), null, language);
-    } else if (mode === 'debug_prompt') {
-      const maxRounds = getMaxRounds('debug_prompt');
-      return buildPromptToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
-        attemptCount,
-        isFirstAfterRoute,
-        language,
-      });
-    } else if (mode === 'debug_code') {
-      const maxRounds = getMaxRounds('debug_code');
-      return buildCodeToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
-        attemptCount,
-        language,
-      });
-    } else if (mode === 'debug_reset_phase1') {
-      // 从 timeline 获取成功的 Upgrade 列表
+    // 如果需要 reset，获取成功的 Upgrade 列表
+    if (showUpgradeSelector) {
       const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
       setSuccessfulUpgrades(upgrades);
-      return buildResetToolPrompt(contextString, bugSummary, resetStep, selectedUpgrades, attemptCount, language);
+      return buildResetConfirmPrompt(contextString, upgrades, language);
     }
 
-    return '';
+    return buildUnifiedDebugPrompt(contextString, currentPrompt, roundCounter.current.get(), language);
   };
 
   // =====================================================
@@ -701,8 +645,8 @@ export default function DebugChat({
   // 事件处理
   // =====================================================
 
+  // 方案 B: 简化的 New Chat
   const handleNewChat = async () => {
-    // 1. 创建新的 debug_session 记录
     const { data: newChat, error } = await supabase
       .from('debug_sessions')
       .insert({
@@ -710,7 +654,6 @@ export default function DebugChat({
         session_id: sessionId,
         bug_type: 'pending',
         conversation_history: [],
-        current_mode: 'debug_orchestrator',
         started_at: new Date().toISOString(),
       })
       .select()
@@ -721,42 +664,33 @@ export default function DebugChat({
       return;
     }
 
-    // 2. 重置所有状态
+    // 重置状态
     setActiveChatId(newChat.id);
-    setCurrentMode('debug_orchestrator');
     setMessages([]);
-    setAttemptCount(0);
     setBugSummary('');
     setExecutionPayload(null);
     setShowUpgradeSelector(false);
-    setResetStep(1);
     setSelectedUpgrades([]);
-    setAwaitingResolution(false);  // P7: Reset resolution state
-
-    // V17 Phase B: 重置 RoundCounter
-    orchestratorRoundCounter.current.reset();
-    toolRoundCounter.current.reset();
+    setAwaitingResolution(false);
+    roundCounter.current.reset();
 
     setIsLoading(true);
 
     try {
-      // 3. 构建 System Prompt 并调用 Agent
-      const systemPrompt = await buildSystemPrompt('debug_orchestrator');
+      // 方案 B: 使用统一 prompt 获取欢迎消息
+      const systemPrompt = await buildSystemPrompt();
       const response = await callAgentDirect({
         systemPrompt,
         messages: [],
         maxTokens: 500,
       });
 
-      // 4. 显示第一句话
       const initialMessage = {
         role: 'assistant',
-        content: response.response,
+        content: response.response || t('debug.fallbackGreeting'),
         timestamp: new Date().toISOString(),
       };
       setMessages([initialMessage]);
-
-      // 5. 写入 DB
       await updateChatHistory(newChat.id, [initialMessage]);
     } catch (error) {
       console.error('Failed to start debug chat:', error);
@@ -773,6 +707,7 @@ export default function DebugChat({
 
   // Q状态更新已移除 - 简化版 Orchestrator 一轮判断
 
+  // 方案 B: 统一 Debug Agent handleSend
   const handleSend = async () => {
     if ((!inputText.trim() && !pendingImage) || isLoading || !activeChatId) return;
 
@@ -794,7 +729,6 @@ export default function DebugChat({
     if (awaitingResolution && !hasImage) {
       setIsLoading(true);
 
-      // Show user message first
       const userMessage = {
         role: 'user',
         content: textContent,
@@ -805,157 +739,56 @@ export default function DebugChat({
       setInputText('');
 
       try {
-        const isResetScenario = currentMode === 'debug_reset_phase1' ||
-                                executionPayload?.type === 'reset';
+        const isResetScenario = executionPayload?.type === 'reset';
         const keptCount = selectedUpgrades?.length || 0;
         const previousCount = successfulUpgrades?.length || 0;
 
-        // Build resolution judge prompt
         const systemPrompt = buildResolutionJudgePrompt(
           isResetScenario, keptCount, previousCount, language
         );
 
-        // Use callAgentDirect (skip precheck for simple judgment)
         const response = await callAgentDirect({
           systemPrompt,
           messages: [{ role: 'user', content: textContent }],
           maxTokens: 200,
         });
 
-        // Build agent reply message
         const agentMessage = {
           role: 'assistant',
           content: response.response,
           timestamp: new Date().toISOString(),
           isIterationPrompt: response.isIterationPrompt || false,
           isRecoveryPrompt: response.isRecoveryPrompt || false,
-          recoveryHint: isResetScenario ? buildResolutionJudgePrompt(
-            true, keptCount, previousCount, language
-          ).match(/Recovery hint.*?"([^"]+)"/)?.[1] : null,
         };
 
         const finalMessages = [...messagesWithUser, agentMessage];
         setMessages(finalMessages);
         await updateChatHistory(activeChatId, finalMessages);
 
-        // Handle based on resolved state
         if (response.resolved === true) {
-          // Fixed: write resolved=true
           await supabase.from('debug_sessions').update({
             resolved: true,
             resolved_at: new Date().toISOString(),
           }).eq('id', activeChatId);
-
           setAwaitingResolution(false);
           await loadChatList();
-
         } else if (response.resolved === false) {
-          // Not fixed: continue debugging
           setAwaitingResolution(false);
-
-        } else {
-          // null: unclear, keep awaitingResolution=true
-          // Agent already asked again
         }
-
       } catch (error) {
         console.error('[DebugChat] Resolution judge error:', error);
-        setAwaitingResolution(false);  // Fallback on error
+        setAwaitingResolution(false);
       } finally {
         setIsLoading(false);
       }
-
       return;
     }
 
-    console.log('[DebugChat] handleSend:', {
-      currentMode,
-      orchestratorRound: orchestratorRoundCounter.current.get(),
-      toolRound: toolRoundCounter.current.get(),
+    console.log('[DebugChat] handleSend (Unified Agent):', {
+      round: roundCounter.current.get(),
       inputText: textContent,
       hasImage,
-      isFirstAfterRoute
     });
-
-    // V17 Phase B 问题3修复：路由刚切换后的第一条消息
-    // 如果是确认词（ok/yes），直接忽略，Tool 开场已经由 Agent 生成
-    if (isFirstAfterRoute && !hasImage) {
-      if (CONFIRMATION_WORDS.test(textContent.trim())) {
-        console.log('[DebugChat] Ignoring confirmation word after route switch');
-        setInputText('');
-        setIsFirstAfterRoute(false);
-        return;
-      }
-      setIsFirstAfterRoute(false);
-    }
-
-    // V17 Phase B: 代码层预检（仅非图片模式）
-    if (!hasImage) {
-      const currentRound = currentMode === 'debug_orchestrator'
-        ? orchestratorRoundCounter.current.get()
-        : toolRoundCounter.current.get();
-
-      const preCheck = preCheckInput(textContent, currentMode, currentRound, language);
-
-      if (!preCheck.shouldCallModel) {
-        // 明显无效输入：直接追问，不调用 API
-        if (preCheck.directResponse) {
-          console.log('[DebugChat] Skipping API call - invalid input:', preCheck.reason);
-
-          const userMessage = {
-            role: 'user',
-            content: textContent,
-            timestamp: new Date().toISOString(),
-          };
-          const assistantMessage = {
-            role: 'assistant',
-            content: preCheck.directResponse,
-            timestamp: new Date().toISOString(),
-          };
-
-          const updatedMessages = [...messages, userMessage, assistantMessage];
-          setMessages(updatedMessages);
-          setInputText('');
-          await updateChatHistory(activeChatId, updatedMessages);
-
-          // 第一次用户消息时生成标题
-          if (messages.filter(m => m.role === 'user').length === 0) {
-            await generateChatTitle(activeChatId, textContent);
-          }
-          return;
-        }
-
-        // V17 Phase B 问题2修复：超过最大轮次，强制放行，不调用 API
-        if (preCheck.forceRelease) {
-          console.log('[DebugChat] Force release due to max rounds');
-
-          const userMessage = {
-            role: 'user',
-            content: textContent,
-            timestamp: new Date().toISOString(),
-          };
-          const forceMessage = {
-            role: 'assistant',
-            content: "Okay, let's try your fix and see if it works.",
-            timestamp: new Date().toISOString(),
-          };
-
-          const updatedMessages = [...messages, userMessage, forceMessage];
-          setMessages(updatedMessages);
-          setInputText('');
-          await updateChatHistory(activeChatId, updatedMessages);
-
-          // 设置放行 payload
-          setExecutionPayload({
-            type: currentMode === 'debug_prompt' ? 'prompt_fix' :
-                  currentMode === 'debug_code' ? 'code_fix' : 'reset',
-            fixText: textContent,
-          });
-
-          return;
-        }
-      }
-    }
 
     // Build user message
     const userMessage = {
@@ -995,80 +828,69 @@ export default function DebugChat({
         });
 
         response = await callAgentDirect({
-          systemPrompt: 'You are a helpful game debugging assistant. Analyze the screenshot and help identify issues.',
+          systemPrompt: 'You are a helpful game debugging assistant. Analyze the screenshot and help identify issues. Return JSON: {"response": "your message", "fix_type": "none", "resolved": false, "continue": true}',
           messages: messagesForApi,
           maxTokens: 800,
           hasImage: true,
         });
       } else {
-        // V17 Phase B: 使用新的 callAgent 函数
-        // 使用 ref 获取 mode，避免 setState 异步竞态
-        const activeMode = currentModeRef.current;
-        const systemPrompt = await buildSystemPrompt(activeMode);
-        const currentRound = activeMode === 'debug_orchestrator'
-          ? orchestratorRoundCounter.current.get()
-          : toolRoundCounter.current.get();
+        // 方案 B: 使用统一 Debug Agent
+        const systemPrompt = await buildSystemPrompt();
+        const currentRound = roundCounter.current.get();
 
-        console.log('[DebugChat] Calling agent with mode:', activeMode, 'round:', currentRound);
+        console.log('[DebugChat] Calling unified agent, round:', currentRound);
 
         response = await callAgent({
-          mode: activeMode,
+          mode: 'debug_unified',
           userInput: textContent,
           currentRound,
           systemPrompt,
           conversationHistory: updatedMessages,
-          maxTokens: activeMode === 'debug_orchestrator' ? 500 : 800,
+          maxTokens: 800,
         });
       }
 
-      // 处理代码层跳过 API 的情况
-      if (response.skippedModel) {
-        console.log('[DebugChat] Model was skipped:', response.reason);
-      }
+      // 处理 fix_type 响应
+      const fixType = response.fix_type;
+      console.log('[DebugChat] Response fix_type:', fixType);
 
-      // 使用 ref 获取当前 mode（避免 setState 异步竞态）
-      const modeForProcessing = currentModeRef.current;
-
-      // 处理路由（简化版 Orchestrator 一轮判断后切换 mode）
-      if (response.route && response.route !== 'pending') {
-        // 路由时，先添加 Orchestrator 的最终响应，再添加路由标记
-        const messagesBeforeRoute = [...updatedMessages, {
-          role: 'assistant',
-          content: response.response,
-          timestamp: new Date().toISOString(),
-        }];
-        await handleRoute(response.route, response.bug_summary, response.related_upgrade, messagesBeforeRoute);
-        // 路由后直接返回，不再执行后续的 setMessages
-        return;
-      }
-
-      // 处理 Reset Phase 1 的步骤切换
-      if (modeForProcessing === 'debug_reset_phase1') {
-        if (response.show_upgrade_selector) {
+      // 如果是 reset，显示 Upgrade 选择器
+      if (fixType === 'reset' && !showUpgradeSelector) {
+        const timeline = await getTimeline(studentId, sessionId);
+        const upgrades = getSuccessfulUpgradesFromTimeline(timeline);
+        setSuccessfulUpgrades(upgrades);
+        if (upgrades.length > 0) {
           setShowUpgradeSelector(true);
-          setResetStep(2);
-        } else if (response.step) {
-          setResetStep(response.step);
-        }
-        if (response.step === 3) {
-          setAttemptCount(prev => prev + 1);
         }
       }
 
-      // 检查是否放行
-      let payload = null;
-      if (response.ready_to_execute || response.forceReleased) {
-        console.log('[DebugChat] Ready to execute!');
-        const fixText = response.student_fix || response.final_fix_request || response.final_new_prompt || textContent;
-        if (fixText) {
-          payload = {
-            type: modeForProcessing === 'debug_prompt' ? 'prompt_fix' :
-                  modeForProcessing === 'debug_code' ? 'code_fix' : 'reset',
-            fixText,
-          };
-          console.log('[DebugChat] Execution payload:', payload);
-          setExecutionPayload(payload);
-        }
+      // 如果有 fix_text，设置执行 payload
+      if (fixType && fixType !== 'none' && response.fix_text) {
+        const payload = {
+          type: fixType === 'prompt_add' || fixType === 'prompt_replace' ? 'prompt_fix' :
+                fixType === 'code_fix' ? 'code_fix' : 'reset',
+          fixText: response.fix_text,
+        };
+        console.log('[DebugChat] Execution payload:', payload);
+        setExecutionPayload(payload);
+      }
+
+      // 如果 resolved，更新数据库
+      if (response.resolved === true) {
+        await supabase.from('debug_sessions').update({
+          resolved: true,
+          resolved_at: new Date().toISOString(),
+          bug_description: response.bug_summary,
+        }).eq('id', activeChatId);
+        await loadChatList();
+      }
+
+      // 更新 bug_summary
+      if (response.bug_summary) {
+        setBugSummary(response.bug_summary);
+        await supabase.from('debug_sessions').update({
+          bug_description: response.bug_summary,
+        }).eq('id', activeChatId);
       }
 
       // 构建助手消息
@@ -1083,19 +905,10 @@ export default function DebugChat({
       setMessages(finalMessages);
       await updateChatHistory(activeChatId, finalMessages);
 
-      // V17 Phase B: 更新 round（使用 RoundCounter）
-      if (modeForProcessing === 'debug_orchestrator') {
-        if (response.continue !== false) {
-          orchestratorRoundCounter.current.increment();
-          console.log('[DebugChat] Orchestrator round incremented to:', orchestratorRoundCounter.current.get());
-        }
-      } else {
-        if (response.continue !== false) {
-          toolRoundCounter.current.increment();
-          console.log('[DebugChat] Tool round incremented to:', toolRoundCounter.current.get());
-        } else {
-          console.log('[DebugChat] Tool round NOT incremented (continue=false), staying at:', toolRoundCounter.current.get());
-        }
+      // 更新 round
+      if (response.continue !== false) {
+        roundCounter.current.increment();
+        console.log('[DebugChat] Round incremented to:', roundCounter.current.get());
       }
 
       // 自动生成 chat 标题
@@ -1115,95 +928,23 @@ export default function DebugChat({
     }
   };
 
-  const handleRoute = async (route, summary, relatedUpgrade, currentMessages) => {
-    console.log('[DebugChat] handleRoute:', { route, summary, relatedUpgrade });
+  // 方案 B: handleRoute 已移除，统一 Agent 直接处理
 
-    const modeMap = {
-      prompt_tool: 'debug_prompt',
-      code_tool: 'debug_code',
-      reset_tool: 'debug_reset_phase1',
-      no_bug: null,
-    };
-    const newMode = modeMap[route];
-    console.log('[DebugChat] Switching mode:', { from: currentMode, to: newMode });
-
-    if (route === 'no_bug') {
-      await supabase.from('debug_sessions').update({
-        resolved: true,
-      }).eq('id', activeChatId);
-      await loadChatList();
-      return;
-    }
-
-    // V17 Phase B: 添加路由标记到对话历史
-    const messagesWithMarker = addRouteMarker(currentMessages, route, summary);
-    setMessages(messagesWithMarker);
-    await updateChatHistory(activeChatId, messagesWithMarker);
-
-    // 写入时间线（如果 timeline 表存在）
-    try {
-      await writeDebugToolSwitch(studentId, sessionId, newMode, summary, lessonType);
-    } catch (e) {
-      console.log('[DebugChat] Timeline write skipped (table may not exist yet)');
-    }
-
-    // 更新状态
-    currentModeRef.current = newMode;  // 同步更新 ref（避免竞态）
-    setCurrentMode(newMode);           // 异步更新 state（用于 UI 渲染）
-    setBugSummary(summary || '');
-    setRelatedUpgradeId(relatedUpgrade || null);  // Gate 2 重设计：保存关联的 Upgrade ID
-    setIsFirstAfterRoute(true);
-    setAttemptCount(0);
-
-    // V17 Phase B: 重置 Tool round counter
-    toolRoundCounter.current.reset();
-    console.log('[DebugChat] handleRoute: mode=', newMode, ', Tool round reset to 1, isFirstAfterRoute=true');
-
-    // 更新 DB 记录
-    await supabase.from('debug_sessions').update({
-      bug_type: route === 'prompt_tool' ? 'prompt' :
-                route === 'code_tool' ? 'code' : 'reset',
-      current_mode: newMode,
-      bug_description: summary,
-      related_upgrade_id: relatedUpgrade,
-    }).eq('id', activeChatId);
-  };
-
+  // 方案 B: 简化的 handleGoGenerate
   const handleGoGenerate = async () => {
-    // V17 Phase B: 压缩对话历史
     if (executionPayload?.fixText) {
-      const compressedMessages = compressTool(messages, executionPayload.type.replace('_fix', ''), executionPayload.fixText);
-      // 不立即更新 UI，只在完成时写入
-
       // 写入时间线
       try {
-        await writeDebugComplete(studentId, sessionId, currentMode.replace('debug_', ''), executionPayload.fixText, false, lessonType);
+        const fixType = executionPayload.type.replace('_fix', '');
+        await writeDebugComplete(studentId, sessionId, fixType, executionPayload.fixText, false, lessonType);
       } catch (e) {
         console.log('[DebugChat] Timeline write skipped');
       }
     }
 
-    // Gate 2 重设计：如果有关联的 Upgrade，标记 appeared=false（真实值，不是推断）
-    if (relatedUpgradeId) {
-      try {
-        await supabase
-          .from('agent_sessions')
-          .update({
-            upgrade_appeared: false,           // Debug 说明没有正常出现
-            gate2_failure_type: currentMode === 'debug_prompt' ? 'no_prompt' : 'prompt_ignored',
-            // gate2_inferred: false,          // TODO: 等数据库迁移后启用
-          })
-          .eq('student_id', studentId)
-          .eq('target_upgrade_id', relatedUpgradeId);
-        console.log(`[DebugChat] Marked upgrade ${relatedUpgradeId} as appeared=false`);
-      } catch (e) {
-        console.log('[DebugChat] Failed to update agent_sessions:', e);
-      }
-    }
-
     // 设置 pendingVerification
     setPendingVerification({
-      type: currentMode.replace('debug_', '').replace('_phase1', ''),
+      type: executionPayload?.type?.replace('_fix', '') || 'prompt',
       debugSessionId: activeChatId,
     });
 
@@ -1220,19 +961,60 @@ export default function DebugChat({
     setExecutionPayload(null);
   };
 
+  // 方案 B: 简化的 handleConfirmUpgrades
   const handleConfirmUpgrades = async () => {
     setShowUpgradeSelector(false);
-    setResetStep(3);
 
     const selectionMessage = selectedUpgrades.length > 0
       ? `I want to keep: ${selectedUpgrades.join(', ')}`
       : 'I want to start completely fresh';
 
-    setInputText(selectionMessage);
-    setTimeout(() => {
-      setInputText('');
-      handleSend();
-    }, 100);
+    // 直接发送选择消息
+    const userMessage = {
+      role: 'user',
+      content: selectionMessage,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    await updateChatHistory(activeChatId, updatedMessages);
+
+    // 调用统一 Agent 生成新的 prompt
+    setIsLoading(true);
+    try {
+      const systemPrompt = await buildSystemPrompt();
+      const response = await callAgent({
+        mode: 'debug_unified',
+        userInput: selectionMessage,
+        currentRound: roundCounter.current.get(),
+        systemPrompt,
+        conversationHistory: updatedMessages,
+        maxTokens: 1000,
+      });
+
+      // 如果有新的 fix_text（重建的 prompt）
+      if (response.fix_text) {
+        setExecutionPayload({
+          type: 'reset',
+          fixText: response.fix_text,
+        });
+      }
+
+      const assistantMessage = {
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date().toISOString(),
+      };
+      const finalMessages = [...updatedMessages, assistantMessage];
+      setMessages(finalMessages);
+      await updateChatHistory(activeChatId, finalMessages);
+
+      roundCounter.current.increment();
+    } catch (error) {
+      console.error('[DebugChat] Reset confirmation error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerificationReturn = async () => {
