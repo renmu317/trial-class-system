@@ -420,13 +420,7 @@ export default function DebugChat({
   const [selectedUpgrades, setSelectedUpgrades] = useState([]);
   const [successfulUpgrades, setSuccessfulUpgrades] = useState([]);
 
-  // Orchestrator Q1-Q4 状态追踪
-  const [qState, setQState] = useState({
-    q1: null,  // 'running' | 'crashed'
-    q2: null,  // 'one' | 'multiple'
-    q3: null,  // 'missing' | 'wrong'
-    q4: null,  // 'opposite' | 'detail'
-  });
+  // Q状态追踪已移除 - 简化版 Orchestrator 一轮判断
 
   // Image upload state
   const [pendingImage, setPendingImage] = useState(null);
@@ -645,7 +639,8 @@ export default function DebugChat({
     const contextString = formatForDebug(timeline, currentPrompt);
 
     if (mode === 'debug_orchestrator') {
-      return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), qState, language);
+      // 简化版：不再传递 qState
+      return buildOrchestratorPrompt(contextString, orchestratorRoundCounter.current.get(), null, language);
     } else if (mode === 'debug_prompt') {
       const maxRounds = getMaxRounds('debug_prompt');
       return buildPromptToolPrompt(contextString, bugSummary, toolRoundCounter.current.get(), maxRounds, {
@@ -736,7 +731,6 @@ export default function DebugChat({
     setShowUpgradeSelector(false);
     setResetStep(1);
     setSelectedUpgrades([]);
-    setQState({ q1: null, q2: null, q3: null, q4: null });
     setAwaitingResolution(false);  // P7: Reset resolution state
 
     // V17 Phase B: 重置 RoundCounter
@@ -777,42 +771,7 @@ export default function DebugChat({
     }
   };
 
-  // Q状态更新（根据学生回答推断）
-  const updateQState = (qAsked, userInput) => {
-    const input = userInput.toLowerCase();
-
-    setQState(prev => {
-      const newState = { ...prev };
-
-      if (qAsked === 'Q1') {
-        if (input.includes('crash') || input.includes('froze') || input.includes('frozen') || input.includes('stuck') || input.includes('broke')) {
-          newState.q1 = 'crashed';
-        } else {
-          newState.q1 = 'running';
-        }
-      } else if (qAsked === 'Q2') {
-        if (input.includes('multiple') || input.includes('many') || input.includes('lot') || input.includes('everything') || input.includes('all')) {
-          newState.q2 = 'multiple';
-        } else {
-          newState.q2 = 'one';
-        }
-      } else if (qAsked === 'Q3') {
-        if (input.includes('missing') || input.includes('not there') || input.includes('don\'t see') || input.includes('no ') || input.includes('didn\'t appear')) {
-          newState.q3 = 'missing';
-        } else {
-          newState.q3 = 'wrong';
-        }
-      } else if (qAsked === 'Q4') {
-        if (input.includes('opposite') || input.includes('reverse') || input.includes('backward') || input.includes('instead')) {
-          newState.q4 = 'opposite';
-        } else {
-          newState.q4 = 'detail';
-        }
-      }
-
-      return newState;
-    });
-  };
+  // Q状态更新已移除 - 简化版 Orchestrator 一轮判断
 
   const handleSend = async () => {
     if ((!inputText.trim() && !pendingImage) || isLoading || !activeChatId) return;
@@ -1070,12 +1029,7 @@ export default function DebugChat({
       // 使用 ref 获取当前 mode（避免 setState 异步竞态）
       const modeForProcessing = currentModeRef.current;
 
-      // 更新 Q 状态（Orchestrator 模式下追踪 Q1-Q4）
-      if (modeForProcessing === 'debug_orchestrator' && response.q_asked) {
-        updateQState(response.q_asked, textContent);
-      }
-
-      // 处理路由（Orchestrator 分类后切换 mode）
+      // 处理路由（简化版 Orchestrator 一轮判断后切换 mode）
       if (response.route && response.route !== 'pending') {
         // 路由时，先添加 Orchestrator 的最终响应，再添加路由标记
         const messagesBeforeRoute = [...updatedMessages, {
