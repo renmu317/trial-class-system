@@ -7,7 +7,29 @@ import SessionQRCode from './SessionQRCode'
 const AVAILABLE_LESSONS = [
   { id: 'lesson1', name: 'Lesson 1: Catch Falling Game', emoji: '🎮' },
   { id: 'lesson2', name: 'Lesson 2: AI Maze Game', emoji: '🧩' },
+  { id: 'lesson3', name: 'Class 1: Zombie Survival Runner', emoji: '🧟' },
+  { id: 'lesson4', name: 'Class 2: Tower Defense: Protect Your Base (Claude)', emoji: '🏰' },
+  { id: 'lesson5', name: 'Class 3: Racing Game Design (Claude)', emoji: '🏎️' },
+  { id: 'lesson6', name: 'Class 4: Roblox Tycoon - Planning and Core Systems', emoji: '🧱' },
+  { id: 'lesson7', name: 'Class 5: Roblox Tycoon - Expanding the Tycoon', emoji: '🏗️' },
+  { id: 'lesson8', name: 'Class 6: Roblox Tycoon - Completing the Game', emoji: '✅' },
+  { id: 'lesson9', name: 'Class 7: Roblox Tycoon - Creativity and Polish', emoji: '✨' },
+  { id: 'lesson10', name: 'Class 8: Roblox Tycoon - Publishing and Sharing', emoji: '🌐' },
 ];
+
+// Short badge shown next to a session name in the session list
+const LESSON_BADGES = {
+  lesson1: { label: '🎮 Catch', className: 'bg-blue-100 text-blue-600' },
+  lesson2: { label: '🧩 Maze', className: 'bg-purple-100 text-purple-600' },
+  lesson3: { label: '🧟 Zombie', className: 'bg-green-100 text-green-600' },
+  lesson4: { label: '🏰 Tower', className: 'bg-amber-100 text-amber-700' },
+  lesson5: { label: '🏎️ Racing', className: 'bg-red-100 text-red-700' },
+  lesson6: { label: '🧱 Core', className: 'bg-slate-100 text-slate-700' },
+  lesson7: { label: '🏗️ Expand', className: 'bg-orange-100 text-orange-700' },
+  lesson8: { label: '✅ Complete', className: 'bg-emerald-100 text-emerald-700' },
+  lesson9: { label: '✨ Polish', className: 'bg-pink-100 text-pink-700' },
+  lesson10: { label: '🌐 Publish', className: 'bg-cyan-100 text-cyan-700' },
+};
 
 export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
   const [sessions, setSessions] = useState([])
@@ -194,11 +216,9 @@ export default function Setup({ taProfile, onStart, onSignOut, onEnrollment }) {
                       <div className="font-medium text-gray-800 flex items-center gap-1.5">
                         {session.name}
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          session.lesson_type === 'lesson2'
-                            ? 'bg-purple-100 text-purple-600'
-                            : 'bg-blue-100 text-blue-600'
+                          (LESSON_BADGES[session.lesson_type] || LESSON_BADGES.lesson1).className
                         }`}>
-                          {session.lesson_type === 'lesson2' ? '🧩 Maze' : '🎮 Catch'}
+                          {(LESSON_BADGES[session.lesson_type] || LESSON_BADGES.lesson1).label}
                         </span>
                         {!session.scheduled_end_at && session.status === 'running' && (
                           <span title="No end time set - Agent time features may be limited">

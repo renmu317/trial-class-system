@@ -45,11 +45,6 @@ import { getSuccessfulUpgrades as getSuccessfulUpgradesFromTimeline } from '../l
 // 确认词正则（用于 isFirstAfterRoute 检测）
 const CONFIRMATION_WORDS = /^(ok|okay|yes|no|sure|good|great|yeah|yep|got\s*it|fine|alright|k|y|n)\.?$/i;
 
-// Supabase Edge Function URL for DeepSeek proxy (用于 vision 模式)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const DEEPSEEK_PROXY_URL = `${SUPABASE_URL}/functions/v1/deepseek-proxy`;
-
 // =====================================================
 // 子组件：ChatSidebar — 左边历史列表
 // =====================================================

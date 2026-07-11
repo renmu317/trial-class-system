@@ -1,6 +1,6 @@
 // V17 StudentCard with signal checkboxes + conversion signals + report generation + Agent signals
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle, Users, FileText, MessageCircle, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, Check, AlertCircle, Users, MessageCircle, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { calculateConversionScore, getDimensionStatus } from '../lib/signalScore'
 import { getAgentSessionSummary } from '../lib/reportPrompt'
@@ -60,8 +60,8 @@ function SignalCheckbox({ item, onToggle, disabled }) {
   )
 }
 
-function DimensionSection({ name, config, status, onToggle, disabled }) {
-  const { label, emoji, color } = config
+function DimensionSection({ config, status, onToggle, disabled }) {
+  const { label, emoji } = config
   const { count, total, items } = status
 
   const ratio = count / total

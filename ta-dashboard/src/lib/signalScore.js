@@ -68,6 +68,16 @@ function calculatePersistence(signals) {
   return 0
 }
 
+function hasUsedChallenge(signals) {
+  return Boolean(signals.cs_used_hard || signals.cs_used_medium)
+}
+
+function getChallengeLabel(signals) {
+  if (signals.cs_used_hard) return 'Used hard level'
+  if (signals.cs_used_medium) return 'Used medium level'
+  return 'Used challenge'
+}
+
 // Calculate dimension completion counts for UI
 export function getDimensionStatus(signals) {
   if (!signals) {
@@ -110,17 +120,17 @@ export function getDimensionStatus(signals) {
     },
     challenge: {
       count: [
-        signals.cs_used_hard || signals.cs_used_medium,
+        hasUsedChallenge(signals),
         signals.cs_own_idea,
         signals.cs_verbal_want,
         signals.cs_kept_working
       ].filter(Boolean).length,
       total: 4,
       items: [
-        { key: 'cs_used_hard', label: 'Hard level', value: signals.cs_used_hard, auto: true },
-        { key: 'cs_used_medium', label: 'Medium level', value: signals.cs_used_medium, auto: true },
+        { key: 'cs_used_challenge', label: getChallengeLabel(signals), value: hasUsedChallenge(signals), auto: true },
         { key: 'cs_own_idea', label: 'Own idea', value: signals.cs_own_idea, auto: true },
-        { key: 'cs_verbal_want', label: 'Said "I want to add..."', value: signals.cs_verbal_want, auto: false }
+        { key: 'cs_verbal_want', label: 'Said "I want to add..."', value: signals.cs_verbal_want, auto: false },
+        { key: 'cs_kept_working', label: 'Kept working after end', value: signals.cs_kept_working, auto: true }
       ]
     },
     parent: {
@@ -146,13 +156,19 @@ function calculatePersistenceCount(signals) {
 }
 
 // Auto-signals that can be derived from events
-export function deriveAutoSignals(events, currentSignals) {
+export function deriveAutoSignals(events, currentSignals, sessionEndAt) {
   const signals = { ...currentSignals }
 
   if (!events || events.length === 0) return signals
 
+  const sessionEndTime = sessionEndAt ? new Date(sessionEndAt).getTime() : null
+
   // Check events to derive signals
   events.forEach(e => {
+    if (sessionEndTime && new Date(e.created_at).getTime() > sessionEndTime) {
+      signals.cs_kept_working = true
+    }
+
     switch (e.event_type) {
       case 'prompt_generated':
         signals.cl_game_made = true

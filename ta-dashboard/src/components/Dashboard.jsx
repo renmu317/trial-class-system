@@ -95,7 +95,7 @@ export default function Dashboard({ session, taName, onExit }) {
 
         // Derive auto signals from events
         const currentSignals = signals[s.id] || {}
-        const derivedSignals = deriveAutoSignals(studentEvents, currentSignals)
+        const derivedSignals = deriveAutoSignals(studentEvents, currentSignals, session.scheduled_end_at)
 
         // Check if we need to update stuck/recovered
         if (isStuck && !currentSignals.ps_got_stuck) {
@@ -136,7 +136,7 @@ export default function Dashboard({ session, taName, onExit }) {
           })
       }
     }
-  }, [students, signals])
+  }, [students, signals, session.scheduled_end_at])
 
   // Initial load + polling
   useEffect(() => {

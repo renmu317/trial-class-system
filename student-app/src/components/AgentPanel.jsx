@@ -56,6 +56,8 @@ async function callDeepSeek(messages, temperature = 0.7, retries = 2, maxTokens 
           messages: messagesWithConstraint,
           temperature,
           max_tokens: maxTokens,
+          model: 'deepseek-chat',
+          response_format: { type: 'json_object' },
         }),
       });
 

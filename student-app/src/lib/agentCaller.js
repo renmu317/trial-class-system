@@ -40,6 +40,10 @@ const JSON_FORMAT_CONSTRAINT = {
  * @returns {Promise<string>} - API 原始响应
  */
 async function callDeepSeek({ systemPrompt, messages, temperature = 0.7, maxTokens = 500, hasImage = false }) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Supabase not configured for DeepSeek proxy');
+  }
+
   // 构建完整消息列表
   const fullMessages = [
     { role: 'system', content: systemPrompt },
@@ -60,6 +64,7 @@ async function callDeepSeek({ systemPrompt, messages, temperature = 0.7, maxToke
       temperature,
       max_tokens: maxTokens,
       model: hasImage ? 'deepseek-vl' : 'deepseek-chat',
+      ...(!hasImage && { response_format: { type: 'json_object' } }),
     }),
   });
 

@@ -214,6 +214,33 @@ export const getMaxRounds = (mode) => {
  * }}
  */
 export const preCheckInput = (text, mode, currentRound, language = 'en') => {
+  const trimmed = text?.trim() || '';
+
+  // Debug Orchestrator asks short diagnostic questions where "no", "it froze",
+  // or "too fast" can carry useful routing signal. Only block empty input here.
+  if (mode === 'debug_orchestrator') {
+    const roundCheck = checkMaxRounds(mode, currentRound);
+    if (!trimmed) {
+      return {
+        shouldCallModel: false,
+        directResponse: getInvalidResponse('empty', language),
+        reason: 'empty',
+      };
+    }
+    if (roundCheck.exceeded) {
+      return {
+        shouldCallModel: false,
+        forceRelease: true,
+        reason: 'max_rounds_exceeded',
+        maxRounds: roundCheck.maxRounds,
+      };
+    }
+    return {
+      shouldCallModel: true,
+      maxRounds: roundCheck.maxRounds,
+    };
+  }
+
   // 检查明显无效输入
   const invalidCheck = checkObviouslyInvalid(text);
   if (invalidCheck.invalid) {
