@@ -1926,7 +1926,7 @@ export default function AgentPanel({
             { role: 'user', content: userInput },
             { role: 'assistant', content: msgs.preCheckResponse }
           ]);
-          handleGate1Finish(rounds, false, bestQuote, undefined);
+          handleGate1Finish(rounds, false, bestQuote, undefined, undefined, undefined);
           return;
         }
         // 无效输入（ok/yes/太短），追问
@@ -1996,7 +1996,11 @@ export default function AgentPanel({
         // 完成 Gate 1 (Hard upgrades include draft_prompt)
         // V17 Phase B: 完成后重置 RoundCounter
         gate1RoundCounter.current.reset();
-        handleGate1Finish(newRounds, isEarlyRelease, parsed.best_quote, parsed.draft_prompt);
+        // Pass parsed params/template directly to avoid stale React state closure
+        handleGate1Finish(
+          newRounds, isEarlyRelease, parsed.best_quote, parsed.draft_prompt,
+          parsed.params_so_far, parsed.prompt_template_so_far
+        );
       } else {
         // 进入下一轮
         // V17 Phase B: 使用 RoundCounter 递增（代码层控制，不受模型返回值影响）
@@ -2017,7 +2021,7 @@ export default function AgentPanel({
         }]);
         // 使用已有的 rounds 数据完成 Gate 1 (API错误时无 draft_prompt)
         gate1RoundCounter.current.reset();
-        handleGate1Finish(rounds, false, bestQuote, undefined);
+        handleGate1Finish(rounds, false, bestQuote, undefined, undefined, undefined);
       } else {
         // Round 1-2：显示错误消息，重置为开放输入模式让用户继续
         setMessages(prev => [...prev, {
@@ -2186,7 +2190,7 @@ export default function AgentPanel({
   /**
    * Gate 1 完成处理
    */
-  async function handleGate1Finish(roundsData, earlyRelease, quote, generatedDraftPrompt) {
+  async function handleGate1Finish(roundsData, earlyRelease, quote, generatedDraftPrompt, lastDynamicParams, lastPromptTemplate) {
     // Medium upgrade：生成参数推荐
     let recommendations = null;
     if (upgrade?.level === 'medium' && upgrade.params?.length > 0) {
@@ -2217,6 +2221,11 @@ export default function AgentPanel({
       languageGrowth: roundsData.length === 1 && earlyRelease ? '一轮通过' : `${roundsData.length}轮完成`,
     });
 
+    // Medium Own Idea: 动态生成的 params 和 template
+    // Use lastDynamicParams/lastPromptTemplate (fresh from parsed response) to avoid stale React state
+    const finalDynamicParams = upgrade?.dynamicParams ? (lastDynamicParams || dynamicParams) : undefined;
+    const finalPromptTemplate = upgrade?.dynamicParams ? (lastPromptTemplate || promptTemplate) : undefined;
+
     // 存储完成数据，等用户点击 "Continue Making Game" 再触发回调
     // 不立刻调用 onGate1Complete，否则 Panel 会立刻关闭，用户看不到 AI 的最后回复
     setGate1CompletionData({
@@ -2225,9 +2234,8 @@ export default function AgentPanel({
       recommendations,           // Medium 用
       bestQuote: quote || bestQuote,  // Hard 用
       draftPrompt: generatedDraftPrompt || '',  // Hard 用：Agent 生成的初始 prompt
-      // Medium Own Idea: 动态生成的 params 和 template
-      dynamicParams: upgrade?.dynamicParams ? dynamicParams : undefined,
-      promptTemplate: upgrade?.dynamicParams ? promptTemplate : undefined,
+      dynamicParams: finalDynamicParams,
+      promptTemplate: finalPromptTemplate,
     });
   }
 

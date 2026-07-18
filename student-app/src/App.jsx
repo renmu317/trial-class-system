@@ -226,7 +226,7 @@ function AppContent() {
     setCompletedUpgrades(prev => [...prev, upgradeId]);
 
     // Medium Own Idea：存储动态params和template
-    if (upgradeLevel === 'medium' && dynamicParams && promptTemplate) {
+    if (upgradeLevel === 'medium' && dynamicParams !== undefined && promptTemplate !== undefined) {
       setDynamicUpgradeConfig(prev => ({
         ...prev,
         [upgradeId]: { params: dynamicParams, template: promptTemplate }
