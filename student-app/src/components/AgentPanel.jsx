@@ -2219,9 +2219,6 @@ export default function AgentPanel({
       bestQuote: quote || bestQuote,
       draftPrompt: generatedDraftPrompt || '', // 存入数据库
       languageGrowth: roundsData.length === 1 && earlyRelease ? '一轮通过' : `${roundsData.length}轮完成`,
-      // Medium Own Idea: 持久化动态 params 和 template
-      dynamicParams: finalDynamicParams,
-      promptTemplate: finalPromptTemplate,
     });
 
     // Medium Own Idea: 动态生成的 params 和 template

@@ -363,7 +363,9 @@ async function handleUpgradeStarted(upgradeId, difficulty) {
     .eq('student_id', _studentId)
     .eq('target_upgrade_id', upgradeId);
 
-  if (existing && existing.length > 0) {
+  // For dynamicParams upgrades (e.g. __own_medium__), allow re-triggering
+  // since the AI-generated params are only in React state, not persisted to DB.
+  if (existing && existing.length > 0 && !upgrade.dynamicParams) {
     console.log('Gate 1 already triggered for this upgrade:', upgradeId);
     // 如果已存在但未完成，可以继续（resume）
     const { data: incomplete } = await supabase
@@ -490,8 +492,6 @@ export async function onGate1Complete(sessionRecordId, data) {
     bestQuote,
     draftPrompt,
     languageGrowth,
-    dynamicParams,
-    promptTemplate,
   } = data;
 
   const updateData = {
@@ -502,16 +502,6 @@ export async function onGate1Complete(sessionRecordId, data) {
     draft_prompt: draftPrompt || null,  // Hard upgrade 的初始 draft
     language_growth_note: languageGrowth,
   };
-
-  // Medium Own Idea: persist dynamic params and template as JSON in draft_prompt
-  // (draft_prompt is only used by Hard upgrades, safe to reuse for Medium)
-  if (dynamicParams?.length > 0 && promptTemplate) {
-    updateData.draft_prompt = JSON.stringify({
-      _type: 'medium_dynamic',
-      params: dynamicParams,
-      template: promptTemplate,
-    });
-  }
 
   // 更新对应轮次的数据
   if (roundNum >= 1) {
@@ -623,36 +613,17 @@ export async function getAgentSession(upgradeId) {
 
 /**
  * 批量获取所有已完成 Gate 1 的 Upgrade ID 列表
- * 同时返回动态 params 和 template（用于 Medium Own Idea）
  */
 export async function getCompletedUpgradeIds() {
-  if (!_studentId) return { ids: [], dynamicConfigs: {} };
+  if (!_studentId) return [];
 
   const { data } = await supabase
     .from('agent_sessions')
-    .select('target_upgrade_id, draft_prompt')
+    .select('target_upgrade_id')
     .eq('student_id', _studentId)
     .eq('gate1_completed', true);
 
-  const ids = (data || []).map(d => d.target_upgrade_id);
-  const dynamicConfigs = {};
-  (data || []).forEach(d => {
-    if (d.draft_prompt) {
-      try {
-        const parsed = JSON.parse(d.draft_prompt);
-        if (parsed._type === 'medium_dynamic' && parsed.params && parsed.template) {
-          dynamicConfigs[d.target_upgrade_id] = {
-            params: parsed.params,
-            template: parsed.template,
-          };
-        }
-      } catch {
-        // Not JSON — likely a Hard upgrade string, ignore
-      }
-    }
-  });
-
-  return { ids, dynamicConfigs };
+  return (data || []).map(d => d.target_upgrade_id);
 }
 
 // =====================================================
