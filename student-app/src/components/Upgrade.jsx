@@ -257,8 +257,8 @@ function UpgradeCard({ up, copiedId, onCopy, onOwnIdeaSubmit, onStart, isComplet
 
   // Medium Own Idea - 动态 params 模式
   if (up.id === '__own_medium__' && up.dynamicParams) {
-    // Gate 1 未完成：显示 Start 按钮
-    if (!isCompleted) {
+    // Show Start button if: not completed, OR completed but dynamicConfig was lost (e.g. page refresh)
+    if (!isCompleted || (!dynamicConfig?.params?.length && !dynamicConfig?.template)) {
       return (
         <div className="bg-white border-2 border-blue-300 rounded-2xl p-4 sm:col-span-2">
           <div className="flex items-center gap-2 mb-2">

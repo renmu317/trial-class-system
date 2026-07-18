@@ -202,8 +202,9 @@ function AppContent() {
       agentBridge.init(sessionId, studentId, currentLesson, handleOpenAgentPanel);
 
       // 加载已完成 Gate 1 的 Upgrade 列表
-      agentBridge.getCompletedUpgradeIds().then(ids => {
+      agentBridge.getCompletedUpgradeIds().then(({ ids, dynamicConfigs }) => {
         setCompletedUpgrades(ids);
+        setDynamicUpgradeConfig(dynamicConfigs);
       });
     }
   }, [sessionId, studentId, currentLesson]);

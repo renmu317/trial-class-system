@@ -24,3 +24,11 @@ Thumbs.db
 npm-debug.log*
 .vercel
 supabase/.temp/
+
+# Agent skills
+.agents/
+.claude/skills/
+skills-lock.json
+
+# Debug artifacts
+*-console-*.png
